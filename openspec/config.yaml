@@ -1,0 +1,89 @@
+schema: spec-driven
+
+context: |
+  ## Product
+
+  esse is not an editor — it is a conveyor from spark to published essay.
+  Target user: someone who wants writing essays to become a habit and publishes
+  publicly (blog, newsletter, channel). First version is a personal tool for
+  Anton, with a possible product later. Full concept: CONCEPT.md (Russian).
+
+  The product exists to solve exactly five beginner problems, and nothing else:
+  nothing to write about; cannot start; drafting and editing get mixed; gives up
+  after two weeks; ashamed to publish. Every feature must trace back to one of
+  these five. If it does not, it is out of scope.
+
+  ## Pipeline and core invariant
+
+      Spark -> Draft (free writing) -> Editing -> Published
+
+  Every essay is in exactly one of these states. The app always knows the next
+  step and suggests it.
+
+  HARD INVARIANT: WIP limit = 1. At most one essay is in progress at any time.
+  A new essay cannot be started until the current one is published or
+  deliberately shelved. Sparks are unlimited; work-in-progress essays are not.
+  Start strict — loosening is easier than tightening later.
+
+  ## The five mechanics
+
+  1. Spark box — capture an idea as one line in under five seconds.
+  2. Start from a spark — there is no "create empty document" screen at all.
+  3. Two modes, "Write" and "Edit" — the central mechanic. Write is fullscreen
+     flow (typewriter mode, cursor centred, going back is deliberately awkward,
+     the goal is volume, text is allowed to be bad). Edit shows the whole text
+     for cutting and rearranging, the goal is quality. Switching modes is an
+     explicit action and the two modes look visibly different.
+  4. Sessions, not deadlines — the unit of habit is a 15-25 minute session, each
+     one a completed success. Session history is an unobtrusive dotted calendar:
+     no streaks, no guilt for a missed day.
+  5. Publishing is completion — an essay ends only by being published (markdown
+     export or copy to a blog, plus a publication link) or deliberately shelved.
+     The main progress display is the row of published essays.
+
+  ## Screens
+
+  Exactly three: Today (one big "Write" button, a quick spark input, the row of
+  published essays and the session dots), Editor (fullscreen, no panels,
+  markdown-lite, Write/Edit switch, quiet session timer), Shelf (three columns:
+  Sparks | In progress | Published, plus a collapsed drawer for shelved essays).
+
+  ## Anti-features — do not propose these, they are positioning, not backlog
+
+  - AI of any kind (generation, suggestions, rewriting)
+  - Formatting toolbars, style pickers, font settings
+  - Folders, tags, nesting
+  - Social features, comments, in-app sharing
+  - Word-count statistics, graphs, streaks
+  - Settings and customization at launch
+
+  ## Tech
+
+  - Native Rust desktop GUI. Framework NOT yet chosen: gpui / iced / egui.
+    Resolve it with a live-markdown-editor prototype before main development.
+  - Markdown live rendering (Typora-like: markdown renders in place as you type,
+    no split preview, no raw syntax in finished text) is written by hand on top
+    of pulldown-cmark or comrak. This is the most expensive part of the project
+    and the place to start.
+  - Markdown-lite only: `#`, `*italic*`, `**bold**`. Nothing more.
+  - Local data only in the personal version; no accounts, no sync.
+
+  ## Conventions
+
+  - OpenSpec artifacts, code, comments and commit messages: English.
+  - CONCEPT.md and README.md: Russian (they are the human-facing docs).
+  - Conventional Commits.
+  - Glossary (Russian concept term -> English artifact term):
+    искра -> spark; черновик -> draft; правка -> editing;
+    режим «Пишу» -> Write mode; режим «Правлю» -> Edit mode;
+    сессия -> session; полка -> shelf; «в стол» -> shelved;
+    копилка искр -> spark box; опубликовано -> published.
+
+rules:
+  proposal:
+    - State which of the five beginner problems the change serves; if none, say so explicitly and justify it.
+    - Include a "Non-goals" section, and check the change against the anti-features list.
+  design:
+    - Note any impact on the WIP-limit-of-1 invariant and on the Write/Edit mode separation.
+  tasks:
+    - Break tasks into chunks of at most two hours.
