@@ -21,6 +21,10 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "c8e44cfa
 
 chrono = { version = "0.4", features = ["serde"] }
 dirs = "6"
+# Tests only: the same font matcher gpui picks faces with, so the embedded
+# family can be asked the question the screen would otherwise answer alone
+# (fonts.rs). The fork and rev are gpui's, so no second copy is built.
+font-kit = { package = "zed-font-kit", git = "https://github.com/zed-industries/font-kit", rev = "94b0f28166665e8fd2f53ff6d268a14955c82269" }
 env_logger = "0.11"
 futures = "0.3"
 # The system-wide summon key. On macOS this is Carbon's RegisterEventHotKey —

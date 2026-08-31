@@ -483,6 +483,10 @@ impl Render for RootView {
         div()
             .relative()
             .size_full()
+            // The one place the app's face is named. Every screen, sheet and
+            // editor line below inherits it, including the two elements that
+            // shape their own text from `window.text_style()`.
+            .font_family(crate::fonts::FAMILY)
             .on_action(cx.listener(Self::toggle_help))
             .on_action(cx.listener(Self::toggle_guidance))
             .child(match &self.screen {

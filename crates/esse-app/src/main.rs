@@ -7,6 +7,7 @@ mod data;
 mod edit;
 mod editor;
 mod essay;
+mod fonts;
 mod guidance;
 mod help;
 mod keymap;
@@ -80,6 +81,9 @@ fn main() {
         // it is the first moment gpui's own activation policy can be set back
         // (summon.rs, design.md D5).
         summon::become_background_app();
+
+        // The faces the app is set in, before the first frame asks for one.
+        fonts::load(cx);
 
         // Every shortcut the app has vocabulary for comes from one table, which
         // is also what the help overlay reads (keymap.rs, design.md D1). The
