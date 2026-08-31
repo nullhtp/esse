@@ -10,9 +10,7 @@ text fades and the viewport follows the cursor, so going back is inconvenient
 without ever being blocked — friction, not a mechanical lock. Autosave on
 every pause removes the other distraction, the question of whether the work is
 safe.
-
 ## Requirements
-
 ### Requirement: Fullscreen flow screen
 Write mode SHALL fill the window with the editor and nothing else — no
 panels, toolbars, or navigation chrome; the only overlay is the quiet session
@@ -51,8 +49,9 @@ back is inconvenient, never mechanically blocked.
 ### Requirement: Autosave on pause
 Write mode SHALL persist the essay body through the atomic essay save after
 roughly a second's pause in editing, and always when leaving Write mode and
-when the app quits or the window closes. `updated_at` follows each save.
-There is no manual save and no unsaved-changes state surfaced to the user.
+whenever the app goes away — quitting, the window closing, or esse being put
+away by the summon key. `updated_at` follows each save. There is no manual
+save and no unsaved-changes state surfaced to the user.
 
 #### Scenario: A pause saves the draft
 - **WHEN** the user stops typing for the pause interval
@@ -60,6 +59,10 @@ There is no manual save and no unsaved-changes state surfaced to the user.
 
 #### Scenario: Leaving never loses text
 - **WHEN** the user leaves Write mode or quits the app immediately after typing
+- **THEN** the essay file on disk contains the text as last typed
+
+#### Scenario: Being put away never loses text
+- **WHEN** the user hides esse with the summon key or closes the window immediately after typing
 - **THEN** the essay file on disk contains the text as last typed
 
 ### Requirement: Leaving Write mode is explicit
@@ -83,3 +86,4 @@ stay in Write mode and surface the error quietly.
 #### Scenario: A failed switch stays put
 - **WHEN** the switch's save or state transition fails
 - **THEN** Write mode remains on screen with the text intact and the error shown quietly
+

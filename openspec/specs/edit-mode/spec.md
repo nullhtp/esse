@@ -13,9 +13,7 @@ writing one, so the two processes stay physically separate and the writer
 always knows which job they are doing. The switch between the rooms is
 explicit and persists the essay's Draft ↔ Editing state, so the mode on screen
 and the essay's state cannot disagree.
-
 ## Requirements
-
 ### Requirement: Calm full-text screen
 Edit mode SHALL fill the window with the editor and nothing else — no panels,
 toolbars, or navigation chrome; the only overlays are the quiet mode-switch
@@ -56,8 +54,9 @@ view, the view SHALL scroll just enough to keep the caret visible.
 ### Requirement: Autosave on pause
 Edit mode SHALL persist the essay body through the atomic essay save after
 roughly a second's pause in editing, and always when leaving Edit mode and
-when the app quits or the window closes. `updated_at` follows each save.
-There is no manual save and no unsaved-changes state surfaced to the user.
+whenever the app goes away — quitting, the window closing, or esse being put
+away by the summon key. `updated_at` follows each save. There is no manual
+save and no unsaved-changes state surfaced to the user.
 
 #### Scenario: A pause saves the text
 - **WHEN** the user stops editing for the pause interval
@@ -65,6 +64,10 @@ There is no manual save and no unsaved-changes state surfaced to the user.
 
 #### Scenario: Leaving never loses text
 - **WHEN** the user leaves Edit mode or quits the app immediately after editing
+- **THEN** the essay file on disk contains the text as last edited
+
+#### Scenario: Being put away never loses text
+- **WHEN** the user hides esse with the summon key or closes the window immediately after editing
 - **THEN** the essay file on disk contains the text as last edited
 
 ### Requirement: Explicit switch back to Write mode
@@ -91,3 +94,4 @@ mode.
 #### Scenario: Escape returns to Today
 - **WHEN** the user presses Escape in Edit mode (outside IME composition)
 - **THEN** the essay is saved, remains in Editing state, and the Today screen is shown with the window state restored
+
