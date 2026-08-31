@@ -1,18 +1,26 @@
-//! esse — the application shell. One window, one screen: Today.
+//! esse — the application shell. One window, three screens: Today, and the
+//! editor's two modes, Write and Edit.
 
+mod autosave;
+mod data;
+mod edit;
+mod editor;
+mod root;
 mod spark_input;
 mod theme;
 mod today;
+mod write;
 
-use esse_core::{DataDir, SparkStore};
+use esse_core::DataDir;
 use gpui::{
     actions, prelude::*, px, size, App, Bounds, Focusable, KeyBinding, TitlebarOptions,
     WindowBounds, WindowOptions,
 };
 use gpui_platform::application;
 
+use data::Data;
+use root::RootView;
 use spark_input::{Backspace, Delete, End, Home, Left, Right, Submit};
-use today::TodayView;
 
 actions!(esse, [Quit]);
 
@@ -21,14 +29,14 @@ fn main() {
     // and nowhere else; without a logger it fails quietly.
     env_logger::init();
 
-    let data = match DataDir::open() {
-        Ok(data) => data,
+    let dir = match DataDir::open() {
+        Ok(dir) => dir,
         Err(error) => {
             eprintln!("esse: {error}");
             std::process::exit(1);
         }
     };
-    let sparks = SparkStore::new(&data);
+    let data = Data::open(&dir);
 
     application().run(move |cx: &mut App| {
         cx.bind_keys([
@@ -41,8 +49,16 @@ fn main() {
             KeyBinding::new("end", End, Some("SparkInput")),
             KeyBinding::new("cmd-left", Home, Some("SparkInput")),
             KeyBinding::new("cmd-right", End, Some("SparkInput")),
+            // Leaving either editor mode is one explicit key, and crossing
+            // between them is one more — the same gesture in both directions,
+            // so it stays in the hand rather than in the head (design.md, D3).
+            KeyBinding::new("escape", write::Leave, Some("Write")),
+            KeyBinding::new("cmd-e", write::Switch, Some("Write")),
+            KeyBinding::new("escape", edit::Leave, Some("Edit")),
+            KeyBinding::new("cmd-e", edit::Switch, Some("Edit")),
             KeyBinding::new("cmd-q", Quit, None),
         ]);
+        cx.bind_keys(editor::key_bindings());
         cx.on_action(|_: &Quit, cx: &mut App| cx.quit());
 
         // Closing the only window ends the app; esse has nothing to stay
@@ -65,7 +81,7 @@ fn main() {
                     }),
                     ..Default::default()
                 },
-                |_, cx| cx.new(|cx| TodayView::new(sparks, cx)),
+                |window, cx| cx.new(|cx| RootView::new(data, window, cx)),
             )
             .unwrap();
 
