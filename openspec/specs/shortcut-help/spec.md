@@ -13,16 +13,15 @@ start"). The anti-feature it avoids is the *persistent* one: a hint layered
 onto a writing screen cannot be ignored, so this listing is visible only while
 it is asked for. It is presentation only, and it never performs the key that
 dismisses it — glancing at help mid-session can change nothing.
-
 ## Requirements
 ### Requirement: On-demand contextual help
 Pressing `cmd-h` SHALL open a help overlay listing the shortcuts active in
 the current context — Today (resting), Today (choosing a spark), Write mode,
 Edit mode, the completion overlay, or the Shelf — each with its key and a
 human-readable label, plus a short trailing section for the global keys
-(`cmd-h`, `cmd-q`). The overlay MUST list only shortcuts that actually work
-in that context and state; baseline text-editing conventions (arrows,
-clipboard, undo) are not listed.
+(`cmd-h`, `cmd-shift-h`, `cmd-q`). The overlay MUST list only shortcuts that
+actually work in that context and state; baseline text-editing conventions
+(arrows, clipboard, undo) are not listed.
 
 #### Scenario: Help on Today shows Today's shortcuts
 - **WHEN** the user presses `cmd-h` on the resting Today screen
@@ -35,6 +34,10 @@ clipboard, undo) are not listed.
 #### Scenario: Help follows the innermost state
 - **WHEN** the user presses `cmd-h` while the completion overlay is open
 - **THEN** the overlay lists the completion overlay's keys, not the underlying Edit mode set
+
+#### Scenario: The global section lists the guidance key
+- **WHEN** the user presses `cmd-h` in any context
+- **THEN** the trailing global section lists `cmd-shift-h` with its guidance label alongside `cmd-h` and `cmd-q`
 
 ### Requirement: Any key dismisses without acting
 While the help overlay is open, the next keypress SHALL only dismiss the
