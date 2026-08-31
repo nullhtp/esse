@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["markdown-lite", "gpui-editor"]
+members = ["gpui-editor"]
 
 # Throwaway spike workspace (see openspec/changes/editor-framework-prototype).
 # Deliberately separate from the future main crate: own lockfile, own deps.

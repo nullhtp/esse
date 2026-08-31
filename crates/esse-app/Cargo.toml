@@ -10,6 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 esse-core.workspace = true
+markdown-lite.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
 env_logger.workspace = true

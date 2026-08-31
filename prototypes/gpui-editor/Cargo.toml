@@ -11,5 +11,7 @@ gpui = { git = "https://github.com/zed-industries/zed", rev = "c8e44cfa7bda9b2e2
 # text at all (it warns, via `log`, and draws nothing). gpui's own examples
 # enable it the same way.
 gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "c8e44cfa7bda9b2e22c8d6934d78969352e7f61a", features = ["font-kit"] }
-markdown-lite = { path = "../markdown-lite" }
+# Promoted into the production workspace; the frozen spike still builds
+# against it from there.
+markdown-lite = { path = "../../crates/markdown-lite" }
 env_logger = "0.11"

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/esse-core", "crates/esse-app"]
+members = ["crates/esse-core", "crates/esse-app", "crates/markdown-lite"]
 # The stage-0 spike is its own workspace (own lockfile, own gpui pin) and is
 # not part of the production build.
 exclude = ["prototypes"]
@@ -12,6 +12,7 @@ publish = false
 
 [workspace.dependencies]
 esse-core = { path = "crates/esse-core" }
+markdown-lite = { path = "crates/markdown-lite" }
 
 # gpui, pinned for the whole stage 1-4 pipeline build (design.md, risks).
 # The rev is tag v1.17.2; `font-kit` must be on or gpui_macos renders no text.
