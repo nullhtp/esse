@@ -46,9 +46,10 @@ pub struct RootView {
     data: Rc<Data>,
     today: Entity<TodayView>,
     screen: Screen,
-    /// The window state to put back when the editor is left for Today. The
-    /// Shelf is a plain screen and never touches it (shelf-screen spec).
-    was_fullscreen: bool,
+    /// Whether the editor is the reason the window covers the screen, so that
+    /// leaving gives back exactly the window that was there before. The Shelf is
+    /// a plain screen and never touches it (shelf-screen spec).
+    filled_the_screen: bool,
     /// Which sheet is up, if either. One field rather than a flag apiece, so
     /// the two cannot stack (writing-guidance spec, design.md D5). A sheet holds
     /// focus while it is up and gives it straight back — neither changes
@@ -81,7 +82,7 @@ impl RootView {
             data,
             today,
             screen: Screen::Today,
-            was_fullscreen: false,
+            filled_the_screen: false,
             sheet: None,
             sheet_focus: cx.focus_handle(),
             was_focused: None,
@@ -299,14 +300,21 @@ impl RootView {
 
     /// Open the editor from Today, in the mode the essay's state calls for: a
     /// Draft is still being written, an essay in Editing is being edited
-    /// (start-from-spark spec). The window goes fullscreen and remembers what
-    /// to put back (design.md, D2).
+    /// (start-from-spark spec). The window takes the whole screen and remembers
+    /// that it was the editor which asked (fullscreen-rooms design.md, D1).
     fn open_editor(&mut self, essay: Essay, window: &mut Window, cx: &mut Context<Self>) {
         // Whichever screen the essay was opened from, it is behind us now.
         self._shelf = None;
-        self.was_fullscreen = window.is_fullscreen();
-        if !self.was_fullscreen {
-            window.toggle_fullscreen();
+
+        // Borderless, not the green button's fullscreen. esse is an Accessory
+        // application — no Dock icon, no menu bar (summon.rs) — and AppKit
+        // simply ignores `toggleFullScreen:` for one: the call returns, and the
+        // window stays the size it was. Borderless suits a summoned app better
+        // anyway, because it puts no second Space between the key and the text
+        // (fullscreen-rooms design.md, D1).
+        if !self.filled_the_screen {
+            self.filled_the_screen = true;
+            window.toggle_simple_fullscreen();
         }
         match essay.status() {
             EssayStatus::Editing => self.show_edit(essay, window, cx),
@@ -439,8 +447,14 @@ impl RootView {
         self.screen = Screen::Today;
         self._editor = None;
 
-        if !self.was_fullscreen && window.is_fullscreen() {
-            window.toggle_fullscreen();
+        // Only the window the editor took is given back, and it is given back
+        // by the same toggle that took it — the state itself is read from the
+        // flag rather than from the window, because the toggle is carried out a
+        // frame later and the window would still be answering for the frame
+        // before (fullscreen-rooms design.md, D1).
+        if self.filled_the_screen {
+            self.filled_the_screen = false;
+            window.toggle_simple_fullscreen();
         }
 
         self.today.update(cx, |today, cx| today.refresh(window, cx));
