@@ -1,21 +1,30 @@
-//! The Today screen: press Write, capture a spark, and see the ones already
-//! captured.
+//! The Today screen: press Write, capture a spark, see the ones already
+//! captured — and, below them, what the writing has come to: the essays
+//! already published and the dotted line of the days they were written on.
 //!
 //! The screen owns no routing. Pressing Write says so and nothing more — the
 //! router decides whether that continues an essay or asks for a spark, and
 //! hands the answer back through [`TodayView::offer_sparks`] and
 //! [`TodayView::say`]. That is what keeps "the button carries no other
 //! behavior" (today-screen spec) true in the code and not just on paper.
+//!
+//! The two lower sections are read-only and quiet on purpose: neither can be
+//! started from, opened, or counted, and both vanish when they have nothing to
+//! show. Today stays a launchpad rather than becoming a dashboard.
 
+use std::collections::HashSet;
 use std::rc::Rc;
 
-use esse_core::Spark;
+use chrono::{Local, NaiveDate};
+use esse_core::{Essay, Spark};
 use gpui::{
     div, prelude::*, px, rgb, App, Context, Entity, EventEmitter, FocusHandle, Focusable,
     SharedString, Subscription, Window,
 };
 
+use crate::calendar;
 use crate::data::Data;
+use crate::essay::title;
 use crate::line_input::{LineInput, Submitted};
 use crate::theme;
 
@@ -33,6 +42,10 @@ pub struct TodayView {
     data: Rc<Data>,
     /// Newest first, as the list shows them.
     sparks: Vec<Spark>,
+    /// Newest published first, as the row shows them.
+    published: Vec<Essay>,
+    /// The days at least one session started on — the filled dots.
+    days_written: HashSet<NaiveDate>,
     input: Entity<LineInput>,
     /// The list is waiting for a spark to be chosen.
     picking: bool,
@@ -54,6 +67,8 @@ impl TodayView {
         let mut view = TodayView {
             data,
             sparks: Vec::new(),
+            published: Vec::new(),
+            days_written: HashSet::new(),
             input,
             picking: false,
             notice: None,
@@ -64,8 +79,9 @@ impl TodayView {
         view
     }
 
-    /// Re-read the spark box. Called when coming back from Write mode, where a
-    /// spark may have been consumed (spark-capture spec).
+    /// Re-read the disk. Called when coming back from Write mode, where a
+    /// spark may have been consumed (spark-capture spec), a session recorded,
+    /// and an essay published.
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         self.picking = false;
         self.notice = None;
@@ -100,9 +116,32 @@ impl TodayView {
                 self.trouble = Some(format!("Искры не читаются: {error}"));
             }
         }
+
+        // The two lower sections are a view of what is already done, and a
+        // showcase that cannot be read is simply not shown: the trouble goes to
+        // the log, the screen stays a place to start writing from. The Shelf is
+        // where the disk gets to complain about essays out loud.
+        self.published = self.data.essays.published().unwrap_or_else(|error| {
+            log::error!("could not read the published essays: {error}");
+            Vec::new()
+        });
+        self.days_written = self
+            .data
+            .sessions
+            .load_all()
+            .map(|sessions| calendar::days_written(&sessions))
+            .unwrap_or_else(|error| {
+                log::error!("could not read the session history: {error}");
+                HashSet::new()
+            });
     }
 
-    fn on_submitted(&mut self, input: Entity<LineInput>, event: &Submitted, cx: &mut Context<Self>) {
+    fn on_submitted(
+        &mut self,
+        input: Entity<LineInput>,
+        event: &Submitted,
+        cx: &mut Context<Self>,
+    ) {
         match self.data.sparks.capture(&event.0) {
             // Nothing but whitespace: not a spark, and the line stays as it is.
             Ok(None) => {}
@@ -162,6 +201,9 @@ impl TodayView {
         let mut list = div()
             .id("sparks")
             .flex_1()
+            // The list gives way to the showcase below rather than pushing it
+            // off the screen; what does not fit scrolls.
+            .min_h(px(0.))
             .overflow_y_scroll()
             .pt(px(20.))
             .flex()
@@ -190,15 +232,104 @@ impl TodayView {
                     .rounded(px(5.))
                     .cursor_pointer()
                     .hover(|style| style.bg(rgb(theme::HIGHLIGHT)))
-                    .on_click(cx.listener(move |_, _, _, cx| {
-                        cx.emit(TodayEvent::Start(id.clone()))
-                    }))
+                    .on_click(
+                        cx.listener(move |_, _, _, cx| cx.emit(TodayEvent::Start(id.clone()))),
+                    )
             } else {
                 row
             }
         }))
     }
+
+    // -- what the writing has come to -------------------------------------
+
+    /// The showcase at the quiet bottom edge: the published essays, then the
+    /// dotted calendar. Both are dimmer and smaller than the spark list above
+    /// them, and the whole block — the rule included — is absent while neither
+    /// has anything to show (today-screen spec).
+    fn showcase(&self) -> Option<impl IntoElement> {
+        let published = self.published_row();
+        let dots = self.session_dots();
+        if published.is_none() && dots.is_none() {
+            return None;
+        }
+
+        Some(
+            div()
+                .flex_none()
+                .mt(px(24.))
+                .pt(px(4.))
+                .border_t_1()
+                .border_color(rgb(theme::RULE))
+                .children(published)
+                .children(dots),
+        )
+    }
+
+    /// The finished essays, newest first: a card each, with the link if the
+    /// writer recorded one. Nothing here starts, opens or changes an essay —
+    /// it is a shelf to look at, not a workspace (published-row spec).
+    fn published_row(&self) -> Option<impl IntoElement> {
+        if self.published.is_empty() {
+            return None;
+        }
+
+        Some(
+            div()
+                .id("published")
+                .pt(px(18.))
+                .flex()
+                .gap(px(10.))
+                .overflow_x_scroll()
+                .children(self.published.iter().map(|essay| {
+                    div()
+                        .flex_none()
+                        .w(px(CARD_WIDTH))
+                        .p(px(10.))
+                        .rounded(px(6.))
+                        .border_1()
+                        .border_color(rgb(theme::RULE))
+                        .text_size(px(theme::SMALL_SIZE))
+                        .child(div().truncate().child(SharedString::from(title(essay))))
+                        .children(essay.publication_url.clone().map(|url| {
+                            div()
+                                .pt(px(4.))
+                                .truncate()
+                                .text_color(rgb(theme::MUTED))
+                                .child(SharedString::from(url))
+                        }))
+                })),
+        )
+    }
+
+    /// The last four weeks as a dotted line, today rightmost. A dot is filled
+    /// where there was writing and empty where there was none — no numbers, no
+    /// labels, nothing to hover or click, and no line at all through a month
+    /// without writing (session-calendar spec).
+    fn session_dots(&self) -> Option<impl IntoElement> {
+        let strip = calendar::strip(&self.days_written, Local::now().date_naive())?;
+
+        Some(
+            div()
+                .pt(px(20.))
+                .pb(px(2.))
+                .flex()
+                .items_center()
+                .gap(px(6.))
+                .children(strip.into_iter().map(|written| {
+                    div().size(px(5.)).rounded(px(2.5)).bg(rgb(if written {
+                        theme::MUTED
+                    } else {
+                        theme::RULE
+                    }))
+                })),
+        )
+    }
 }
+
+/// A published card: wide enough for a few words of a title, narrow enough
+/// that the row reads as a shelf of finished things rather than a list.
+const CARD_WIDTH: f32 = 172.;
 
 impl Focusable for TodayView {
     /// The screen's focus is the capture line: there is nothing else to type
@@ -213,6 +344,7 @@ impl Render for TodayView {
         let button = self.write_button(cx);
         let list = self.list(cx);
         let shelf = self.shelf_control(cx);
+        let showcase = self.showcase();
 
         div()
             .key_context("Today")
@@ -233,6 +365,7 @@ impl Render for TodayView {
                     .max_w_full()
                     .px(px(theme::PAGE_PADDING))
                     .pt(px(theme::PAGE_PADDING))
+                    .pb(px(theme::PAGE_PADDING))
                     .child(button)
                     .children(self.picking.then(|| {
                         div()
@@ -256,7 +389,8 @@ impl Render for TodayView {
                             .text_color(rgb(theme::ALARM))
                             .child(text)
                     }))
-                    .child(list),
+                    .child(list)
+                    .children(showcase),
             )
     }
 }

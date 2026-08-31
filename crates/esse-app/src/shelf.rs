@@ -19,6 +19,7 @@ use gpui::{
 };
 
 use crate::data::Data;
+use crate::essay::title;
 use crate::theme;
 
 actions!(shelf, [Leave]);
@@ -270,13 +271,6 @@ fn empty(text: &'static str) -> impl IntoElement {
         .text_size(px(theme::BODY_SIZE))
         .text_color(rgb(theme::MUTED))
         .child(text)
-}
-
-/// What to call an essay on the shelf: the spark it grew from, which is how
-/// the writer remembers it. A hand-written file without one falls back to its
-/// file name.
-fn title(essay: &Essay) -> String {
-    essay.spark.clone().unwrap_or_else(|| essay.slug.clone())
 }
 
 impl Focusable for ShelfView {

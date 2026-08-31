@@ -13,6 +13,7 @@ esse-core.workspace = true
 markdown-lite.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
+chrono.workspace = true
 dirs.workspace = true
 env_logger.workspace = true
 log.workspace = true

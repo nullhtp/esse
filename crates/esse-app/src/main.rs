@@ -2,9 +2,11 @@
 //! and the editor's two modes, Write and Edit.
 
 mod autosave;
+mod calendar;
 mod data;
 mod edit;
 mod editor;
+mod essay;
 mod line_input;
 mod root;
 mod shelf;
