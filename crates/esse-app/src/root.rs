@@ -17,6 +17,7 @@ use gpui::{div, prelude::*, App, Context, Entity, FocusHandle, Focusable, Subscr
 
 use crate::data::Data;
 use crate::edit::{EditEvent, EditView};
+use crate::guidance;
 use crate::help;
 use crate::keymap::Place;
 use crate::shelf::{ShelfEvent, ShelfView};
@@ -32,6 +33,15 @@ enum Screen {
     Edit(Entity<EditView>),
 }
 
+/// The two sheets that can be laid over a screen. Both answer a question about
+/// the place the writer is standing in — one which keys work here, the other how
+/// to work here — and both are gone on the next keypress.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Sheet {
+    Help,
+    Guidance,
+}
+
 pub struct RootView {
     data: Rc<Data>,
     today: Entity<TodayView>,
@@ -39,11 +49,13 @@ pub struct RootView {
     /// The window state to put back when the editor is left for Today. The
     /// Shelf is a plain screen and never touches it (shelf-screen spec).
     was_fullscreen: bool,
-    /// The help sheet is up. It holds focus while it is, and gives it straight
-    /// back — help changes nothing, ever (shortcut-help spec).
-    helping: bool,
-    help_focus: FocusHandle,
-    /// Who had the keys before help borrowed them.
+    /// Which sheet is up, if either. One field rather than a flag apiece, so
+    /// the two cannot stack (writing-guidance spec, design.md D5). A sheet holds
+    /// focus while it is up and gives it straight back — neither changes
+    /// anything, ever (shortcut-help spec).
+    sheet: Option<Sheet>,
+    sheet_focus: FocusHandle,
+    /// Who had the keys before a sheet borrowed them.
     was_focused: Option<FocusHandle>,
     _today: Subscription,
     _shelf: Option<Subscription>,
@@ -77,8 +89,8 @@ impl RootView {
             today,
             screen: Screen::Today,
             was_fullscreen: false,
-            helping: false,
-            help_focus: cx.focus_handle(),
+            sheet: None,
+            sheet_focus: cx.focus_handle(),
             was_focused: None,
             _today: subscription,
             _shelf: None,
@@ -86,35 +98,54 @@ impl RootView {
         }
     }
 
-    // -- help --------------------------------------------------------------
+    // -- the sheets ----------------------------------------------------------
 
-    /// `cmd-h`, from wherever the writer is. Opening it takes the keys so that
-    /// the next press only puts the sheet away, and closing it hands them back
-    /// to exactly whoever had them — the screen behind is untouched
-    /// (shortcut-help spec, design.md D2).
+    /// `cmd-h`: which keys work here.
     fn toggle_help(&mut self, _: &help::Toggle, window: &mut Window, cx: &mut Context<Self>) {
-        if self.helping {
-            self.close_help(window, cx);
+        self.toggle(Sheet::Help, window, cx);
+    }
+
+    /// `cmd-shift-h`: how to work here — the method the mechanics enforce, said
+    /// out loud (writing-guidance spec).
+    fn toggle_guidance(
+        &mut self,
+        _: &guidance::Toggle,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.toggle(Sheet::Guidance, window, cx);
+    }
+
+    /// Put a sheet up, or take down the one that is. Opening takes the keys so
+    /// that the next press only puts the sheet away, and closing hands them back
+    /// to exactly whoever had them — the screen behind is untouched
+    /// (shortcut-help spec, writing-guidance spec, design.md D2).
+    fn toggle(&mut self, sheet: Sheet, window: &mut Window, cx: &mut Context<Self>) {
+        if self.sheet == Some(sheet) {
+            self.close_sheet(window, cx);
             return;
         }
-        self.helping = true;
-        self.was_focused = window.focused(cx);
-        window.focus(&self.help_focus, cx);
+        // Whatever the writer was typing into keeps the focus it had, unless a
+        // sheet is already holding it on their behalf.
+        if self.sheet.is_none() {
+            self.was_focused = window.focused(cx);
+        }
+        self.sheet = Some(sheet);
+        window.focus(&self.sheet_focus, cx);
         cx.notify();
     }
 
-    fn close_help(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.helping {
+    fn close_sheet(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.sheet.take().is_none() {
             return;
         }
-        self.helping = false;
         if let Some(focus) = self.was_focused.take() {
             window.focus(&focus, cx);
         }
         cx.notify();
     }
 
-    /// Where the writer is standing, as help understands it: the innermost
+    /// Where the writer is standing, as the sheets understand it: the innermost
     /// state, not the screen it happens to be drawn on (design.md, D3).
     fn place(&self, cx: &App) -> Place {
         match &self.screen {
@@ -182,8 +213,7 @@ impl RootView {
     fn leave_shelf(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.screen = Screen::Today;
         self._shelf = None;
-        self.today
-            .update(cx, |today, cx| today.refresh(window, cx));
+        self.today.update(cx, |today, cx| today.refresh(window, cx));
         window.focus(&self.today.read(cx).focus_handle(cx), cx);
         cx.notify();
     }
@@ -204,9 +234,7 @@ impl RootView {
                     Ok(_) => self
                         .today
                         .update(cx, |today, cx| today.offer_sparks(window, cx)),
-                    Err(error) => {
-                        self.tell(format!("Искры не читаются: {error}"), window, cx)
-                    }
+                    Err(error) => self.tell(format!("Искры не читаются: {error}"), window, cx),
                 }
             }
             Err(error) => {
@@ -220,8 +248,7 @@ impl RootView {
         match start_essay_from_spark(&self.data.sparks, &self.data.essays, spark_id) {
             Ok(essay) => {
                 // The spark is gone from the box; the list has to agree.
-                self.today
-            .update(cx, |today, cx| today.refresh(window, cx));
+                self.today.update(cx, |today, cx| today.refresh(window, cx));
                 self.open_editor(essay, window, cx);
             }
             // Routing normally makes this impossible — neither screen offers a
@@ -400,8 +427,7 @@ impl RootView {
             window.toggle_fullscreen();
         }
 
-        self.today
-            .update(cx, |today, cx| today.refresh(window, cx));
+        self.today.update(cx, |today, cx| today.refresh(window, cx));
         window.focus(&self.today.read(cx).focus_handle(cx), cx);
         cx.notify();
     }
@@ -409,8 +435,8 @@ impl RootView {
 
 impl Focusable for RootView {
     fn focus_handle(&self, cx: &App) -> FocusHandle {
-        if self.helping {
-            return self.help_focus.clone();
+        if self.sheet.is_some() {
+            return self.sheet_focus.clone();
         }
         match &self.screen {
             Screen::Write(write) => write.read(cx).focus_handle(cx),
@@ -427,24 +453,28 @@ impl Render for RootView {
         // leaves it standing in a key context of its own, where none of the
         // screen's shortcuts are bound and any key can only dismiss it
         // (design.md, D2).
-        let help = self.helping.then(|| {
-            help::overlay(
-                self.place(cx),
-                &self.help_focus,
-                cx.listener(|this, _, window, cx| this.close_help(window, cx)),
-            )
+        let sheet = self.sheet.map(|sheet| {
+            let place = self.place(cx);
+            let dismiss = cx.listener(|this, _, window, cx| this.close_sheet(window, cx));
+            match sheet {
+                Sheet::Help => help::overlay(place, &self.sheet_focus, dismiss).into_any_element(),
+                Sheet::Guidance => {
+                    guidance::overlay(place, &self.sheet_focus, dismiss).into_any_element()
+                }
+            }
         });
 
         div()
             .relative()
             .size_full()
             .on_action(cx.listener(Self::toggle_help))
+            .on_action(cx.listener(Self::toggle_guidance))
             .child(match &self.screen {
                 Screen::Write(write) => write.clone().into_any_element(),
                 Screen::Edit(edit) => edit.clone().into_any_element(),
                 Screen::Shelf(shelf) => shelf.clone().into_any_element(),
                 Screen::Today => self.today.clone().into_any_element(),
             })
-            .children(help)
+            .children(sheet)
     }
 }

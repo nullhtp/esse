@@ -13,15 +13,15 @@
 
 use gpui::KeyBinding;
 
-use crate::{edit, editor, help, shelf, today, write, Quit};
+use crate::{edit, editor, guidance, help, shelf, today, write, Quit};
 
 /// Where a shortcut lives.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scope {
     /// One key context, named as the screen names itself.
     In(&'static str),
-    /// Bound wherever the help overlay is not. The overlay's own context has no
-    /// bindings at all, which is what makes any key dismiss it and nothing else
+    /// Bound wherever neither sheet is up. Their own contexts have no bindings
+    /// at all, which is what makes any key dismiss them and nothing else
     /// (design.md, D2).
     Everywhere,
 }
@@ -31,7 +31,7 @@ impl Scope {
     fn predicate(self) -> &'static str {
         match self {
             Scope::In(context) => context,
-            Scope::Everywhere => "!Help",
+            Scope::Everywhere => "!Help && !Guidance",
         }
     }
 }
@@ -71,6 +71,14 @@ pub static SHORTCUTS: &[Shortcut] = &[
         Scope::Everywhere,
         "Подсказка по клавишам"
     ),
+    // The heavier press asks the heavier question: not what can be pressed
+    // here, but how to work here (design.md, D4).
+    shortcut!(
+        "cmd-shift-h",
+        guidance::Toggle,
+        Scope::Everywhere,
+        "Как здесь работать"
+    ),
     shortcut!("cmd-q", Quit, Scope::Everywhere, "Выйти из esse"),
     // Today, at rest. Both take a modifier, so plain typing keeps landing in
     // the capture line (keyboard-shortcuts spec).
@@ -107,12 +115,7 @@ pub static SHORTCUTS: &[Shortcut] = &[
     shortcut!("escape", shelf::Leave, Scope::In(SHELF), "Назад, к сегодня"),
     shortcut!("cmd-l", shelf::Leave, Scope::In(SHELF), "Назад, к сегодня"),
     // Write mode.
-    shortcut!(
-        "escape",
-        write::Leave,
-        Scope::In(WRITE),
-        "Выйти к сегодня"
-    ),
+    shortcut!("escape", write::Leave, Scope::In(WRITE), "Выйти к сегодня"),
     shortcut!("cmd-e", write::Switch, Scope::In(WRITE), "Перейти к правке"),
     // Edit mode.
     shortcut!("escape", edit::Leave, Scope::In(EDIT), "Выйти к сегодня"),
@@ -160,6 +163,8 @@ pub const FINISHING: &str = "Finishing";
 pub const LINE_INPUT: &str = "LineInput";
 /// The help overlay's own context, which nothing is bound in.
 pub const HELP: &str = "Help";
+/// The guidance overlay's own context, likewise empty.
+pub const GUIDANCE: &str = "Guidance";
 
 /// Every binding, for `cx.bind_keys` at startup.
 pub fn bindings() -> Vec<KeyBinding> {
@@ -210,10 +215,12 @@ impl Place {
 
 /// The shortcuts that work in `place`, in table order.
 pub fn shortcuts(place: Place) -> impl Iterator<Item = &'static Shortcut> {
-    SHORTCUTS.iter().filter(move |shortcut| match shortcut.scope {
-        Scope::In(context) => place.contexts().contains(&context),
-        Scope::Everywhere => false,
-    })
+    SHORTCUTS
+        .iter()
+        .filter(move |shortcut| match shortcut.scope {
+            Scope::In(context) => place.contexts().contains(&context),
+            Scope::Everywhere => false,
+        })
 }
 
 /// The shortcuts that work wherever you are — help's short trailing section.
@@ -263,13 +270,10 @@ mod tests {
     #[test]
     fn every_row_is_listed_somewhere() {
         for shortcut in SHORTCUTS {
-            let same = |listed: &Shortcut| {
-                listed.keys == shortcut.keys && listed.scope == shortcut.scope
-            };
-            let listed = PLACES
-                .iter()
-                .any(|place| shortcuts(*place).any(same))
-                || everywhere().any(same);
+            let same =
+                |listed: &Shortcut| listed.keys == shortcut.keys && listed.scope == shortcut.scope;
+            let listed =
+                PLACES.iter().any(|place| shortcuts(*place).any(same)) || everywhere().any(same);
             assert!(listed, "{} is bound but nowhere to be seen", shortcut.keys);
         }
 
@@ -279,6 +283,35 @@ mod tests {
                 Scope::In(HELP),
                 "nothing is bound while help is up"
             );
+            assert_ne!(
+                shortcut.scope,
+                Scope::In(GUIDANCE),
+                "nothing is bound while the guidance sheet is up"
+            );
+        }
+    }
+
+    /// Both sheets are summoned from wherever the writer is, so both keys are
+    /// global — and a global key that a screen also claims would do two things
+    /// at once (writing-guidance spec, design.md D4).
+    #[test]
+    fn the_global_keys_are_free_everywhere() {
+        let global: Vec<_> = everywhere().collect();
+        assert!(
+            global
+                .iter()
+                .any(|s| s.keys == "cmd-shift-h" && !s.label.trim().is_empty()),
+            "the guidance key is listed in the global section, with a label"
+        );
+
+        for shortcut in global {
+            for place in PLACES {
+                assert!(
+                    !shortcuts(place).any(|listed| listed.keys == shortcut.keys),
+                    "{} is global but {place:?} claims it too",
+                    shortcut.keys
+                );
+            }
         }
     }
 

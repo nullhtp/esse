@@ -7,6 +7,7 @@ mod data;
 mod edit;
 mod editor;
 mod essay;
+mod guidance;
 mod help;
 mod keymap;
 mod line_input;
