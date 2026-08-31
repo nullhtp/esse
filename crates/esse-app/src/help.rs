@@ -51,7 +51,7 @@ pub fn overlay(
                 .text_color(rgb(theme::INK))
                 .child(heading(place.title()))
                 .children(rows(keymap::shortcuts(place)))
-                .child(div().pt(px(18.)).child(heading("Везде")))
+                .child(div().pt(px(18.)).child(heading("Everywhere")))
                 .children(rows(keymap::everywhere())),
         )
 }

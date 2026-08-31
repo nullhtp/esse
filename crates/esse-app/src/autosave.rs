@@ -101,7 +101,7 @@ impl Autosave {
             }
             Err(error) => {
                 log::error!("could not save the essay: {error}");
-                self.trouble = Some(format!("Не сохранилось: {error}"));
+                self.trouble = Some(format!("Did not save: {error}"));
             }
         }
         cx.notify();

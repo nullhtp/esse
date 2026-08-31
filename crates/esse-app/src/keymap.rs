@@ -65,90 +65,60 @@ pub static SHORTCUTS: &[Shortcut] = &[
     // Everywhere. `cmd-h` is the Hide key in most Mac apps; esse sets no
     // application menu, so nothing claims it, and hiding a one-window writing
     // app has no workflow anyway (design.md, D2).
-    shortcut!(
-        "cmd-h",
-        help::Toggle,
-        Scope::Everywhere,
-        "Подсказка по клавишам"
-    ),
+    shortcut!("cmd-h", help::Toggle, Scope::Everywhere, "Keys that work here"),
     // The heavier press asks the heavier question: not what can be pressed
     // here, but how to work here (design.md, D4).
     shortcut!(
         "cmd-shift-h",
         guidance::Toggle,
         Scope::Everywhere,
-        "Как здесь работать"
+        "How to work here"
     ),
-    shortcut!("cmd-q", Quit, Scope::Everywhere, "Выйти из esse"),
+    shortcut!("cmd-q", Quit, Scope::Everywhere, "Quit esse"),
     // Today, at rest. Both take a modifier, so plain typing keeps landing in
     // the capture line (keyboard-shortcuts spec).
-    shortcut!("cmd-enter", today::Write, Scope::In(TODAY), "Писать"),
-    shortcut!("cmd-l", today::Shelf, Scope::In(TODAY), "Полка"),
+    shortcut!("cmd-enter", today::Write, Scope::In(TODAY), "Write"),
+    shortcut!("cmd-l", today::Shelf, Scope::In(TODAY), "Shelf"),
     // Today, choosing the spark to start from. The capture line does not hold
     // focus here, so the bare keys are free (design.md, D5).
-    shortcut!("up", today::Previous, Scope::In(CHOOSING), "Искра выше"),
-    shortcut!("down", today::Next, Scope::In(CHOOSING), "Искра ниже"),
-    shortcut!(
-        "enter",
-        today::Choose,
-        Scope::In(CHOOSING),
-        "Начать с этой искры"
-    ),
-    shortcut!("escape", today::Cancel, Scope::In(CHOOSING), "Не начинать"),
+    shortcut!("up", today::Previous, Scope::In(CHOOSING), "Spark above"),
+    shortcut!("down", today::Next, Scope::In(CHOOSING), "Spark below"),
+    shortcut!("enter", today::Choose, Scope::In(CHOOSING), "Start from this spark"),
+    shortcut!("escape", today::Cancel, Scope::In(CHOOSING), "Do not start"),
     // The Shelf. Nothing here is typed into, so the arrows are free too.
-    shortcut!("left", shelf::Left, Scope::In(SHELF), "Столбец левее"),
-    shortcut!("right", shelf::Right, Scope::In(SHELF), "Столбец правее"),
-    shortcut!("up", shelf::Up, Scope::In(SHELF), "Выше по столбцу"),
-    shortcut!("down", shelf::Down, Scope::In(SHELF), "Ниже по столбцу"),
-    shortcut!(
-        "enter",
-        shelf::Activate,
-        Scope::In(SHELF),
-        "Открыть выбранное"
-    ),
-    shortcut!(
-        "cmd-d",
-        shelf::Drawer,
-        Scope::In(SHELF),
-        "Стол: открыть и закрыть"
-    ),
-    shortcut!("escape", shelf::Leave, Scope::In(SHELF), "Назад, к сегодня"),
-    shortcut!("cmd-l", shelf::Leave, Scope::In(SHELF), "Назад, к сегодня"),
+    shortcut!("left", shelf::Left, Scope::In(SHELF), "Column to the left"),
+    shortcut!("right", shelf::Right, Scope::In(SHELF), "Column to the right"),
+    shortcut!("up", shelf::Up, Scope::In(SHELF), "Up the column"),
+    shortcut!("down", shelf::Down, Scope::In(SHELF), "Down the column"),
+    shortcut!("enter", shelf::Activate, Scope::In(SHELF), "Open what is selected"),
+    shortcut!("cmd-d", shelf::Drawer, Scope::In(SHELF), "Shelved: show and hide"),
+    shortcut!("escape", shelf::Leave, Scope::In(SHELF), "Back to Today"),
+    shortcut!("cmd-l", shelf::Leave, Scope::In(SHELF), "Back to Today"),
     // Write mode.
-    shortcut!("escape", write::Leave, Scope::In(WRITE), "Выйти к сегодня"),
-    shortcut!("cmd-e", write::Switch, Scope::In(WRITE), "Перейти к правке"),
+    shortcut!("escape", write::Leave, Scope::In(WRITE), "Leave for Today"),
+    shortcut!("cmd-e", write::Switch, Scope::In(WRITE), "Go to Editing"),
     // Edit mode.
-    shortcut!("escape", edit::Leave, Scope::In(EDIT), "Выйти к сегодня"),
-    shortcut!("cmd-e", edit::Switch, Scope::In(EDIT), "Вернуться к письму"),
-    shortcut!("cmd-enter", edit::Finish, Scope::In(EDIT), "Закончить эссе"),
+    shortcut!("escape", edit::Leave, Scope::In(EDIT), "Leave for Today"),
+    shortcut!("cmd-e", edit::Switch, Scope::In(EDIT), "Back to Writing"),
+    shortcut!("cmd-enter", edit::Finish, Scope::In(EDIT), "Finish the essay"),
     // Markup, from inside the text. The same keys in both rooms: the editor is
     // one editor (design.md, D4).
-    shortcut!("cmd-b", editor::ToggleBold, Scope::In(EDITOR), "Жирный"),
-    shortcut!("cmd-i", editor::ToggleItalic, Scope::In(EDITOR), "Курсив"),
-    shortcut!("cmd-1", editor::Heading1, Scope::In(EDITOR), "Заголовок 1"),
-    shortcut!("cmd-2", editor::Heading2, Scope::In(EDITOR), "Заголовок 2"),
-    shortcut!("cmd-3", editor::Heading3, Scope::In(EDITOR), "Заголовок 3"),
+    shortcut!("cmd-b", editor::ToggleBold, Scope::In(EDITOR), "Bold"),
+    shortcut!("cmd-i", editor::ToggleItalic, Scope::In(EDITOR), "Italic"),
+    shortcut!("cmd-1", editor::Heading1, Scope::In(EDITOR), "Heading 1"),
+    shortcut!("cmd-2", editor::Heading2, Scope::In(EDITOR), "Heading 2"),
+    shortcut!("cmd-3", editor::Heading3, Scope::In(EDITOR), "Heading 3"),
     // The completion overlay: a small key world of its own (design.md, D7).
-    shortcut!(
-        "tab",
-        edit::NextAction,
-        Scope::In(FINISHING),
-        "Следующее действие"
-    ),
-    shortcut!(
-        "right",
-        edit::NextAction,
-        Scope::In(FINISHING),
-        "Следующее действие"
-    ),
+    shortcut!("tab", edit::NextAction, Scope::In(FINISHING), "Next action"),
+    shortcut!("right", edit::NextAction, Scope::In(FINISHING), "Next action"),
     shortcut!(
         "left",
         edit::PreviousAction,
         Scope::In(FINISHING),
-        "Предыдущее действие"
+        "Previous action"
     ),
-    shortcut!("enter", edit::Activate, Scope::In(FINISHING), "Выбрать"),
-    shortcut!("escape", edit::Leave, Scope::In(FINISHING), "Закрыть"),
+    shortcut!("enter", edit::Activate, Scope::In(FINISHING), "Choose"),
+    shortcut!("escape", edit::Leave, Scope::In(FINISHING), "Close"),
 ];
 
 /// The key contexts the screens declare. Named here so the table and the
@@ -190,12 +160,12 @@ impl Place {
     /// What the place calls itself, at the top of the help sheet.
     pub fn title(self) -> &'static str {
         match self {
-            Place::Today => "Сегодня",
-            Place::ChoosingSpark => "С какой искры начать",
-            Place::Write => "Пишу",
-            Place::Edit => "Правлю",
-            Place::Finishing => "Закончить эссе",
-            Place::Shelf => "Полка",
+            Place::Today => "Today",
+            Place::ChoosingSpark => "Which spark to start from",
+            Place::Write => "Writing",
+            Place::Edit => "Editing",
+            Place::Finishing => "Finish the essay",
+            Place::Shelf => "Shelf",
         }
     }
 

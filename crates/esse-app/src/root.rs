@@ -203,7 +203,7 @@ impl RootView {
                 Ok(None) => view.update(cx, |shelf, cx| shelf.refresh(cx)),
                 Err(error) => {
                     log::error!("could not look for an essay in progress: {error}");
-                    let notice = format!("Эссе не читаются: {error}");
+                    let notice = format!("Cannot read the essays: {error}");
                     view.update(cx, |shelf, cx| shelf.say(notice, cx));
                 }
             },
@@ -227,19 +227,19 @@ impl RootView {
                 let sparks = self.data.sparks.load_all().map(|sparks| sparks.len());
                 match sparks {
                     Ok(0) => self.tell(
-                        "Чтобы начать, нужна искра. Запишите мысль — с неё и начнём.",
+                        "A spark comes first. Write a thought down, and we start from it.",
                         window,
                         cx,
                     ),
                     Ok(_) => self
                         .today
                         .update(cx, |today, cx| today.offer_sparks(window, cx)),
-                    Err(error) => self.tell(format!("Искры не читаются: {error}"), window, cx),
+                    Err(error) => self.tell(format!("Cannot read the sparks: {error}"), window, cx),
                 }
             }
             Err(error) => {
                 log::error!("could not look for an essay in progress: {error}");
-                self.tell(format!("Эссе не читаются: {error}"), window, cx);
+                self.tell(format!("Cannot read the essays: {error}"), window, cx);
             }
         }
     }
@@ -255,15 +255,13 @@ impl RootView {
             // start while the slot is taken; the refusal is still shown rather
             // than swallowed (start-from-spark spec).
             Err(Error::EssayInProgress { slug, .. }) => self.tell(
-                format!(
-                    "Сейчас в работе «{slug}» — его нужно закончить, прежде чем начинать новое."
-                ),
+                format!("“{slug}” is in progress — finish it before starting another one."),
                 window,
                 cx,
             ),
             Err(error) => {
                 log::error!("could not start an essay: {error}");
-                self.tell(format!("Не получилось начать: {error}"), window, cx);
+                self.tell(format!("Could not start: {error}"), window, cx);
             }
         }
     }
@@ -341,7 +339,7 @@ impl RootView {
                     }
                     Err(error) => {
                         log::error!("could not switch to Edit mode: {error}");
-                        let trouble = format!("Не переключилось: {error}");
+                        let trouble = format!("Did not switch: {error}");
                         view.update(cx, |write, cx| write.complain(trouble, cx));
                     }
                 }
@@ -366,7 +364,7 @@ impl RootView {
                     Ok(essay) => self.show_write(essay, window, cx),
                     Err(error) => {
                         log::error!("could not switch to Write mode: {error}");
-                        let trouble = format!("Не переключилось: {error}");
+                        let trouble = format!("Did not switch: {error}");
                         view.update(cx, |edit, cx| edit.complain(trouble, cx));
                     }
                 }
@@ -378,13 +376,13 @@ impl RootView {
                 let saved = view.update(cx, |edit, cx| edit.save(cx));
                 let essay = view.read(cx).essay().clone();
                 let ended = saved.and_then(|()| publish(&self.data.essays, essay, link.as_deref()));
-                self.ended(ended, "Не опубликовалось", view, window, cx);
+                self.ended(ended, "Did not publish", view, window, cx);
             }
             EditEvent::Shelve => {
                 let saved = view.update(cx, |edit, cx| edit.save(cx));
                 let essay = view.read(cx).essay().clone();
                 let ended = saved.and_then(|()| shelve(&self.data.essays, essay));
-                self.ended(ended, "Не убралось в стол", view, window, cx);
+                self.ended(ended, "Did not shelve", view, window, cx);
             }
         }
     }

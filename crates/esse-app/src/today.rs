@@ -76,7 +76,7 @@ impl EventEmitter<TodayEvent> for TodayView {}
 
 impl TodayView {
     pub fn new(data: Rc<Data>, cx: &mut Context<Self>) -> Self {
-        let input = cx.new(|cx| LineInput::new("Новая искра", cx));
+        let input = cx.new(|cx| LineInput::new("New spark", cx));
         let submitted = cx.subscribe(&input, Self::on_submitted);
 
         let mut view = TodayView {
@@ -152,7 +152,7 @@ impl TodayView {
             Err(error) => {
                 log::error!("could not read the sparks: {error}");
                 self.sparks = Vec::new();
-                self.trouble = Some(format!("Искры не читаются: {error}"));
+                self.trouble = Some(format!("Cannot read the sparks: {error}"));
             }
         }
 
@@ -217,7 +217,7 @@ impl TodayView {
                 // The text stays in the field: a spark that failed to save is
                 // still on the screen rather than lost.
                 log::error!("could not save a spark: {error}");
-                self.trouble = Some(format!("Не сохранилось: {error}"));
+                self.trouble = Some(format!("Did not save: {error}"));
             }
         }
         cx.notify();
@@ -274,7 +274,7 @@ impl TodayView {
             .cursor_pointer()
             .hover(|style| style.bg(rgb(theme::INK_HOVER)))
             .on_click(cx.listener(|_, _, _, cx| cx.emit(TodayEvent::Write)))
-            .child("Писать")
+            .child("Write")
     }
 
     /// The way to the Shelf: a corner control, in the same quiet register as
@@ -291,7 +291,7 @@ impl TodayView {
             .cursor_pointer()
             .hover(|style| style.text_color(rgb(theme::INK)))
             .on_click(cx.listener(|_, _, _, cx| cx.emit(TodayEvent::Shelf)))
-            .child("Полка")
+            .child("Shelf")
     }
 
     /// The whole of the onboarding: two quiet lines under the capture line,
@@ -309,10 +309,10 @@ impl TodayView {
                 .text_size(px(theme::SMALL_SIZE))
                 .text_color(rgb(theme::MUTED))
                 .child(if self.sparks.is_empty() {
-                    "Идеи приходят каждый день и теряются. Запишите 3–5 прямо \
-                     сейчас — с них и начнётся первое эссе."
+                    "Ideas arrive every day and get lost. Write down three to five \
+                     right now — the first essay starts from one of them."
                 } else {
-                    "Запишите ещё пару — чтобы было из чего выбрать."
+                    "Add a couple more — so there is something to choose from."
                 }),
         )
     }
@@ -337,7 +337,7 @@ impl TodayView {
                 div()
                     .pt(px(8.))
                     .text_color(rgb(theme::MUTED))
-                    .child("Пока пусто. Первая мысль, которая придёт, станет первой искрой."),
+                    .child("Empty for now. The first thought that comes will be the first spark."),
             );
         }
 
@@ -528,7 +528,7 @@ impl Render for TodayView {
                             .pt(px(14.))
                             .text_size(px(theme::SMALL_SIZE))
                             .text_color(rgb(theme::MUTED))
-                            .child("С какой искры начать? Выберите её в списке.")
+                            .child("Which spark to start from? Pick one in the list.")
                     }))
                     .children(self.notice.clone().map(|text| {
                         div()

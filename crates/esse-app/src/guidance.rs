@@ -105,81 +105,81 @@ fn method(place: Place) -> &'static Method {
 }
 
 /// The daily loop: catch sparks between sessions, spend one session writing
-/// (CONCEPT.md, механики 1 и 4).
+/// (CONCEPT.md, mechanics 1 and 4).
 static TODAY: Method = Method {
-    lead: "Здесь всё начинается заново. Одна искра, один заход — из этого и вырастает привычка писать.",
+    lead: "Everything begins again here. One spark, one session — the writing habit grows out of that.",
     steps: &[
-        "Мелькнула мысль — не дайте ей уйти: строчка в поле искр, и она ваша. Это зерно, а не обязательство.",
-        "Готовы — жмите «Писать». Приложение само вспомнит, где вы остановились, или предложит выбрать искру.",
-        "Дальше всего двадцать минут. Не «написать эссе», а побыть с текстом — этого достаточно.",
-        "Время вышло — выходите со спокойной душой. Заход состоялся, даже если до конца ещё далеко.",
-        "День отметится точкой внизу. Пропустили — не страшно: важна не цепочка, а то, что вы возвращаетесь.",
+        "A thought went by — do not let it leave: one line in the spark box and it is yours. A seed, not a vow.",
+        "Ready — press Write. The app remembers where you stopped, or asks which spark to start from.",
+        "Ahead of you are twenty minutes. Not “write the essay” — just be with the text, and that is enough.",
+        "Time is up — leave with a clear head. The session happened, even if the end is still far off.",
+        "The day gets a dot below. Missed one — never mind: what counts is not the chain but that you come back.",
     ],
 };
 
 /// Choosing is the cheap part; deliberating over it is the expensive one
-/// (CONCEPT.md, механика 2).
+/// (CONCEPT.md, mechanic 2).
 static CHOOSING_SPARK: Method = Method {
-    lead: "Все ваши мысли уже здесь — осталось выбрать одну. Выбор запускает работу, так пусть он будет лёгким.",
+    lead: "Your thoughts are already here — one of them has to be picked. The choice starts the work, so keep it light.",
     steps: &[
-        "Пробегите список сверху вниз и берите ту, на которой споткнулся взгляд. Она и есть живая.",
-        "Не ищите «самую важную». Важной искра становится, пока вы о ней пишете, а не пока её выбираете.",
-        "Не бойтесь, что не знаете тему целиком. Никто не знает — текст затем и пишется, чтобы понять.",
-        "Выбранная искра станет эссе, остальные дождутся очереди. Копилка не пустеет от одного выбора.",
-        "Передумали — выйдите, ничего не начав. Счётчика неудачных заходов здесь нет и не будет.",
+        "Run down the list and take the one your eye stumbles on. That is the one still alive.",
+        "Do not hunt for the most important. A spark becomes important while you write it, not while you pick it.",
+        "Do not fear knowing only part of the topic. Nobody knows it — the text is written in order to understand.",
+        "The chosen spark becomes an essay, the rest wait their turn. One choice does not empty the box.",
+        "Changed your mind — leave without starting. There is no counter of failed attempts here, and never will be.",
     ],
 };
 
-/// The mode that exists to make bad text (CONCEPT.md, механика 3).
+/// The mode that exists to make bad text (CONCEPT.md, mechanic 3).
 static WRITE: Method = Method {
-    lead: "Здесь можно писать плохо — и нужно. Задача не сделать хорошо, а сделать целиком; хорошо будет потом.",
+    lead: "Here you may write badly — and should. The task is not to write well but to write it whole; well comes later.",
     steps: &[
-        "Начните с любой первой фразы. Она не обязана быть удачной — её всё равно почти наверняка перепишут.",
-        "Идите вперёд и не перечитывайте. Текст выше приглушён нарочно: пусть написанное не тянет назад.",
-        "Застряли — так и напишите: «застрял, потому что…». Честная строка всегда лучше пустой.",
-        "Не нашли слово или факт — оставьте пропуск и бегите дальше. Разберётесь на правке, не сейчас.",
-        "О сохранении не думайте: текст ложится на диск сам, едва вы перестали печатать.",
-        "Заход окончен — останавливайтесь хоть на полуслове. Дописали черновик целиком — вам в «Правлю».",
+        "Start with any first sentence. It does not have to be good — it will almost certainly be rewritten anyway.",
+        "Go forward and do not reread. The text above is dimmed on purpose: what is written must not pull you back.",
+        "Stuck — write that down: “stuck, because…”. An honest line always beats an empty one.",
+        "No word or fact at hand — leave a gap and run on. Editing is where that gets sorted out, not here.",
+        "Do not think about saving: the text goes to disk by itself the moment you stop typing.",
+        "The session is over — stop mid-sentence if you like. Draft written whole — you are due in Editing.",
     ],
 };
 
-/// The mode where the goal flips (CONCEPT.md, механика 3).
+/// The mode where the goal flips (CONCEPT.md, mechanic 3).
 static EDIT: Method = Method {
-    lead: "Теперь можно быть строгим. Текст перед вами целиком — и всё лишнее в нём наконец видно.",
+    lead: "Now you can be strict. The whole text is in front of you, and everything superfluous is finally visible.",
     steps: &[
-        "Сначала прочтите всё подряд, не трогая ни слова. Просто заметьте, где вам стало скучно.",
-        "Смело режьте крупное. Абзац, который не работает, лечится удалением, а не починкой.",
-        "Переставьте оставшееся: сильное — в начало и в конец. Середину читают вполглаза.",
-        "Закройте пропуски из черновика и только потом беритесь за фразы: короче, точнее, живее.",
-        "Захотелось дописать целый кусок — вернитесь в «Пишу». Не смешивайте: это две разные работы.",
-        "Заголовок — в самом конце, когда видно, о чём получилось. И заканчивайте: дальше публикация.",
+        "First read it all the way through without touching a word. Simply notice where you got bored.",
+        "Cut boldly, and cut big. A paragraph that does not work is cured by deletion, not by repair.",
+        "Move what is left: the strong parts to the beginning and the end. The middle is read with half an eye.",
+        "Close the gaps left in the draft, and only then work the sentences: shorter, sharper, more alive.",
+        "Tempted to write a whole new piece — go back to Writing. Do not mix them: these are two different jobs.",
+        "The title comes last, once you see what it became. Then finish it: publishing is the next step.",
     ],
 };
 
 /// The only two endings, and why the shelved one is not a failure
-/// (CONCEPT.md, механика 5).
+/// (CONCEPT.md, mechanic 5).
 static FINISHING: Method = Method {
-    lead: "Самый страшный шаг и самый важный. Текст оживает, только когда его прочли, — иначе он навсегда черновик.",
+    lead: "The most frightening step, and the most important. A text lives only once read — otherwise it stays a draft.",
     steps: &[
-        "«Ещё не готово» — это не про текст, а про страх. Сам он не пройдёт: решайте, отдаёте ли вы текст читателю.",
-        "Скопируйте как markdown или сохраните в файл — уйдут только ваши слова, без служебных строк.",
-        "Опубликуйте по-настоящему: блог, рассылка, канал. Место, где текст встретит живого человека.",
-        "Вернитесь и вставьте ссылку. Необязательно — но потом вы увидите, что всё это было всерьёз.",
-        "Подтвердите. Эссе встанет в ряд опубликованных, а руки освободятся для следующего.",
-        "Текст правда не тот — отправьте «в стол». Это взрослое решение, а не поражение; но вернуть его нельзя.",
+        "“Not ready yet” is about fear, not about the text. It will not pass by itself: decide, and hand it over.",
+        "Copy it as markdown or save it to a file — only your words go out, without the service lines.",
+        "Publish it for real: a blog, a newsletter, a channel. Somewhere the text meets a living person.",
+        "Come back and paste the link. Optional — but later it is what shows you all of this was in earnest.",
+        "Confirm. The essay joins the row of published ones, and your hands are free for the next.",
+        "The text really is wrong — shelve it. A grown-up decision, not a defeat; but it does not come back.",
     ],
 };
 
 /// The conveyor seen whole, and the rule that keeps it moving (CONCEPT.md,
-/// «Конвейер»).
+/// "The conveyor").
 static SHELF: Method = Method {
-    lead: "Отсюда видно всё сразу: что ждёт своей очереди, что в работе и что уже дошло до людей.",
+    lead: "From here you see it all at once: what waits its turn, what is in the works, what reached people.",
     steps: &[
-        "Слева копилка искр, свежие сверху. Пока она не пуста, «не о чем писать» вам больше не грозит.",
-        "В середине то, что в работе. Оно всегда одно: одно эссе доходит до конца чаще, чем пять начатых.",
-        "Справа опубликованное, с датами и ссылками. Вот это и есть ваш прогресс, а не счётчик слов.",
-        "Внизу «стол» — отложенное осознанно. Перечитать можно, вернуть в работу нет, и это честно.",
-        "Тянет к другому — доведите текущее до конца. Свободные руки здесь зарабатываются, а не выдаются.",
+        "On the left the spark box, freshest on top. While it has something in it, “nothing to write about” is over.",
+        "In the middle, the essay in progress. Always one: one essay reaches the end more often than five do.",
+        "On the right the published ones, with dates and links. That is your progress, not a word count.",
+        "Below, the shelved — set aside deliberately. Rereading is allowed, coming back is not, and that is honest.",
+        "Drawn to another one — finish the current one first. Free hands are earned here, not handed out.",
     ],
 };
 
@@ -227,7 +227,8 @@ mod tests {
     /// The sheet has to fit on screen whole — there is no scrolling in it,
     /// because any key dismisses it (design.md, D2). Both dimensions are
     /// capped: how many steps, and how long each one wraps to. The budget is
-    /// in characters, counted as characters — every one of these is two bytes.
+    /// in characters, counted as characters: what wraps a line is glyphs, and
+    /// a step is free to carry a dash or a quote that is more than one byte.
     #[test]
     fn no_place_outgrows_the_sheet() {
         // Two wrapped lines at the card's measure, with the number in front.

@@ -141,7 +141,7 @@ impl EditView {
             finishing: None,
             highlight: None,
             overlay_focus: cx.focus_handle(),
-            link: cx.new(|cx| LineInput::new("Ссылка на публикацию — если уже есть", cx)),
+            link: cx.new(|cx| LineInput::new("Link to the publication — if you have one", cx)),
             note: None,
             _subscriptions: subscriptions,
         }
@@ -308,7 +308,7 @@ impl EditView {
             return;
         }
         cx.write_to_clipboard(ClipboardItem::new_string(self.essay().body_markdown()));
-        self.note = Some("Скопировано".into());
+        self.note = Some("Copied".into());
         cx.notify();
     }
 
@@ -326,12 +326,12 @@ impl EditView {
         cx.spawn(async move |this, cx| {
             let told = match chosen.await {
                 Ok(Ok(Some(path))) => match std::fs::write(&path, &markdown) {
-                    Ok(()) => Ok(format!("Сохранено: {}", path.display())),
-                    Err(error) => Err(format!("Не сохранилось в файл: {error}")),
+                    Ok(()) => Ok(format!("Saved: {}", path.display())),
+                    Err(error) => Err(format!("Did not save to the file: {error}")),
                 },
                 // The dialog was dismissed: no file, and the panel stays open.
                 Ok(Ok(None)) => return,
-                Ok(Err(error)) => Err(format!("Не открылось окно сохранения: {error}")),
+                Ok(Err(error)) => Err(format!("The save dialog did not open: {error}")),
                 // The dialog went away with the window; there is nobody to tell.
                 Err(_) => return,
             };
@@ -400,10 +400,10 @@ impl EditView {
             .flex()
             .flex_col()
             .gap(px(10.))
-            .child(title("Эссе закончено?"))
-            .child(self.action("publish", "Опубликовать", true, Step::Publish, cx))
-            .child(self.action("shelve", "В стол", false, Step::Shelve, cx))
-            .child(self.cancel("not-yet", "Ещё нет", Step::NotYet, cx))
+            .child(title("Is the essay finished?"))
+            .child(self.action("publish", "Publish", true, Step::Publish, cx))
+            .child(self.action("shelve", "Shelve", false, Step::Shelve, cx))
+            .child(self.cancel("not-yet", "Not yet", Step::NotYet, cx))
     }
 
     /// Copy and export come before the confirming action, because that is the
@@ -415,12 +415,12 @@ impl EditView {
             .flex()
             .flex_col()
             .gap(px(10.))
-            .child(title("Опубликовать"))
-            .child(self.action("copy", "Скопировать как markdown", false, Step::Copy, cx))
-            .child(self.action("export", "Сохранить в файл…", false, Step::Export, cx))
+            .child(title("Publish"))
+            .child(self.action("copy", "Copy as markdown", false, Step::Copy, cx))
+            .child(self.action("export", "Save to a file…", false, Step::Export, cx))
             .child(div().pt(px(6.)).child(self.link.clone()))
-            .child(self.action("published", "Опубликовано", true, Step::Published, cx))
-            .child(self.cancel("back", "Назад", Step::Back, cx))
+            .child(self.action("published", "Published", true, Step::Published, cx))
+            .child(self.cancel("back", "Back", Step::Back, cx))
     }
 
     /// The one explicit step in front of shelving. Nothing comes back out of
@@ -430,16 +430,16 @@ impl EditView {
             .flex()
             .flex_col()
             .gap(px(10.))
-            .child(title("Убрать в стол?"))
+            .child(title("Shelve this essay?"))
             .child(
                 div()
                     .pb(px(4.))
                     .text_size(px(theme::SMALL_SIZE))
                     .text_color(rgb(theme::MUTED))
-                    .child("Эссе останется на полке, но вернуть его в работу будет нельзя."),
+                    .child("The essay stays on the shelf, but it cannot come back into work."),
             )
-            .child(self.action("shelve-confirm", "Да, в стол", true, Step::Confirm, cx))
-            .child(self.cancel("shelve-decline", "Нет", Step::Decline, cx))
+            .child(self.action("shelve-confirm", "Yes, shelve it", true, Step::Confirm, cx))
+            .child(self.cancel("shelve-decline", "No", Step::Decline, cx))
     }
 
     /// A thing the panel does. The confirming action carries the ink;
@@ -567,7 +567,7 @@ impl Render for EditView {
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.show(Stage::Choosing, window, cx)
                             }))
-                            .child("Закончить"),
+                            .child("Finish"),
                     )
                     .child(
                         div()
@@ -575,7 +575,7 @@ impl Render for EditView {
                             .cursor_pointer()
                             .hover(|style| style.text_color(rgb(theme::edit::SWITCH_HOVER)))
                             .on_click(cx.listener(|_, _, _, cx| cx.emit(EditEvent::Switch)))
-                            .child("Пишу"),
+                            .child("Writing"),
                     ),
             )
             .children(self.autosave.trouble().map(|text| {

@@ -167,11 +167,11 @@ impl WriteView {
         let minutes = elapsed.as_secs() / 60;
         if elapsed >= SESSION_TARGET {
             (
-                format!("{minutes} мин · сессия сделана").into(),
+                format!("{minutes} min · session done").into(),
                 theme::write::INDICATOR_DONE,
             )
         } else {
-            (format!("{minutes} мин").into(), theme::write::INDICATOR)
+            (format!("{minutes} min").into(), theme::write::INDICATOR)
         }
     }
 }
@@ -208,7 +208,7 @@ impl Render for WriteView {
                     .cursor_pointer()
                     .hover(|style| style.text_color(rgb(theme::write::SWITCH_HOVER)))
                     .on_click(cx.listener(|_, _, _, cx| cx.emit(WriteEvent::Switch)))
-                    .child("Правлю"),
+                    .child("Editing"),
             )
             .child(
                 div()

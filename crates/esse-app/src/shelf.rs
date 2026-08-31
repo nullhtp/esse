@@ -118,7 +118,7 @@ impl ShelfView {
                 log::error!("could not read the shelf: {error}");
                 self.contents = Contents::default();
                 self.highlight = None;
-                self.trouble = Some(format!("Полка не читается: {error}"));
+                self.trouble = Some(format!("Cannot read the shelf: {error}"));
             }
         }
     }
@@ -217,8 +217,8 @@ impl ShelfView {
     fn sparks_column(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let startable = self.startable();
 
-        column("sparks", "Искры")
-            .children(self.contents.sparks.is_empty().then(|| empty("Пока пусто")))
+        column("sparks", "Sparks")
+            .children(self.contents.sparks.is_empty().then(|| empty("Empty for now")))
             .children(
                 self.contents
                     .sparks
@@ -240,12 +240,12 @@ impl ShelfView {
     }
 
     fn in_progress_column(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        column("in-progress", "В работе")
+        column("in-progress", "In progress")
             .children(
                 self.contents
                     .in_progress
                     .is_none()
-                    .then(|| empty("Ничего не пишется")),
+                    .then(|| empty("Nothing being written")),
             )
             .children(self.contents.in_progress.as_ref().map(|essay| {
                 pickable(row(essay.slug.clone(), self.is_on(IN_PROGRESS, 0)))
@@ -256,8 +256,8 @@ impl ShelfView {
                             .text_size(px(theme::SMALL_SIZE))
                             .text_color(rgb(theme::MUTED))
                             .child(match essay.status() {
-                                EssayStatus::Draft => "черновик",
-                                _ => "правится",
+                                EssayStatus::Draft => "draft",
+                                _ => "editing",
                             }),
                     )
                     .on_click(cx.listener(|_, _, _, cx| cx.emit(ShelfEvent::Continue)))
@@ -265,12 +265,12 @@ impl ShelfView {
     }
 
     fn published_column(&self) -> impl IntoElement {
-        column("published", "Опубликовано")
+        column("published", "Published")
             .children(
                 self.contents
                     .published
                     .is_empty()
-                    .then(|| empty("Пока ничего")),
+                    .then(|| empty("Nothing yet")),
             )
             .children(
                 self.contents
@@ -310,7 +310,7 @@ impl ShelfView {
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.drawer_toggled(&Drawer, window, cx)
                     }))
-                    .child(format!("В столе {marker}")),
+                    .child(format!("Shelved {marker}")),
             )
             .children(self.drawer_open.then(|| {
                 div()
@@ -320,7 +320,7 @@ impl ShelfView {
                     .pt(px(8.))
                     .text_size(px(theme::BODY_SIZE))
                     .text_color(rgb(theme::MUTED))
-                    .children(self.contents.shelved.is_empty().then(|| empty("Стол пуст")))
+                    .children(self.contents.shelved.is_empty().then(|| empty("Nothing shelved")))
                     .children(self.contents.shelved.iter().map(|essay| {
                         row(essay.slug.clone(), false).child(SharedString::from(title(essay)))
                     }))
@@ -472,7 +472,7 @@ impl Render for ShelfView {
                     .cursor_pointer()
                     .hover(|style| style.text_color(rgb(theme::INK)))
                     .on_click(cx.listener(|_, _, _, cx| cx.emit(ShelfEvent::Left)))
-                    .child("Сегодня"),
+                    .child("Today"),
             )
             .child(
                 div()
