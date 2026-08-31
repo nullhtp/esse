@@ -1,0 +1,19 @@
+[package]
+name = "esse-core"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+# Domain model and storage. Deliberately free of any GUI dependency so the
+# invariant and the file formats stay testable in seconds (design.md, D1).
+[dependencies]
+chrono.workspace = true
+dirs.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+toml_edit.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

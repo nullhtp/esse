@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = ["crates/esse-core", "crates/esse-app"]
+# The stage-0 spike is its own workspace (own lockfile, own gpui pin) and is
+# not part of the production build.
+exclude = ["prototypes"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.dependencies]
+esse-core = { path = "crates/esse-core" }
+
+# gpui, pinned for the whole stage 1-4 pipeline build (design.md, risks).
+# The rev is tag v1.17.2; `font-kit` must be on or gpui_macos renders no text.
+gpui = { git = "https://github.com/zed-industries/zed", rev = "c8e44cfa7bda9b2e22c8d6934d78969352e7f61a" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "c8e44cfa7bda9b2e22c8d6934d78969352e7f61a", features = ["font-kit"] }
+
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "6"
+env_logger = "0.11"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+thiserror = "2"
+toml_edit = "0.23"
+uuid = { version = "1", features = ["v4", "serde"] }

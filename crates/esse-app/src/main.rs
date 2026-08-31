@@ -1,0 +1,81 @@
+//! esse — the application shell. One window, one screen: Today.
+
+mod spark_input;
+mod theme;
+mod today;
+
+use esse_core::{DataDir, SparkStore};
+use gpui::{
+    actions, prelude::*, px, size, App, Bounds, Focusable, KeyBinding, TitlebarOptions,
+    WindowBounds, WindowOptions,
+};
+use gpui_platform::application;
+
+use spark_input::{Backspace, Delete, End, Home, Left, Right, Submit};
+use today::TodayView;
+
+actions!(esse, [Quit]);
+
+fn main() {
+    // gpui reports platform trouble — a missing font, for one — through `log`
+    // and nowhere else; without a logger it fails quietly.
+    env_logger::init();
+
+    let data = match DataDir::open() {
+        Ok(data) => data,
+        Err(error) => {
+            eprintln!("esse: {error}");
+            std::process::exit(1);
+        }
+    };
+    let sparks = SparkStore::new(&data);
+
+    application().run(move |cx: &mut App| {
+        cx.bind_keys([
+            KeyBinding::new("enter", Submit, Some("SparkInput")),
+            KeyBinding::new("backspace", Backspace, Some("SparkInput")),
+            KeyBinding::new("delete", Delete, Some("SparkInput")),
+            KeyBinding::new("left", Left, Some("SparkInput")),
+            KeyBinding::new("right", Right, Some("SparkInput")),
+            KeyBinding::new("home", Home, Some("SparkInput")),
+            KeyBinding::new("end", End, Some("SparkInput")),
+            KeyBinding::new("cmd-left", Home, Some("SparkInput")),
+            KeyBinding::new("cmd-right", End, Some("SparkInput")),
+            KeyBinding::new("cmd-q", Quit, None),
+        ]);
+        cx.on_action(|_: &Quit, cx: &mut App| cx.quit());
+
+        // Closing the only window ends the app; esse has nothing to stay
+        // resident for.
+        cx.on_window_closed(|cx, _| {
+            if cx.windows().is_empty() {
+                cx.quit();
+            }
+        })
+        .detach();
+
+        let bounds = Bounds::centered(None, size(px(680.), px(720.)), cx);
+        let window = cx
+            .open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    titlebar: Some(TitlebarOptions {
+                        title: Some("esse".into()),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+                |_, cx| cx.new(|cx| TodayView::new(sparks, cx)),
+            )
+            .unwrap();
+
+        // Focus the capture line before the window is on screen: launching the
+        // app is already being ready to type.
+        window
+            .update(cx, |view, window, cx| {
+                window.focus(&view.focus_handle(cx), cx);
+                cx.activate(true);
+            })
+            .unwrap();
+    });
+}

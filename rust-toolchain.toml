@@ -1,0 +1,6 @@
+# Matches the toolchain Zed pins at the gpui revision in the workspace manifest
+# (zed's own rust-toolchain.toml at v1.17.2). gpui uses `std::hint::cold_path`,
+# which is not stable before this release, so an older stable cannot build it.
+[toolchain]
+channel = "1.97.1"
+profile = "minimal"
