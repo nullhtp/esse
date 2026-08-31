@@ -1,15 +1,5 @@
-# local-storage Specification
+## MODIFIED Requirements
 
-## Purpose
-
-The on-disk contract: where esse keeps its data and in what formats — a
-visible folder in the writer's documents, essays as `essays/<slug>.md` with
-TOML front matter, sparks and sessions as JSONL.
-
-Plain human-readable files, no database, no accounts, no sync. These formats
-are load-bearing for every later stage, so the round-trip and durability rules
-below are part of the contract, not implementation detail.
-## Requirements
 ### Requirement: Data directory
 The app SHALL keep all data as plain files in a folder the writer can see:
 `Esse` inside the platform documents directory (on macOS
@@ -38,43 +28,6 @@ its place.
 #### Scenario: A recorded folder whose volume is gone
 - **WHEN** a location was recorded and its parent directory does not exist
 - **THEN** the launch stops with a message naming that path, and no directory is created
-
-### Requirement: Essay file format
-Each essay SHALL be stored as `essays/<slug>.md`: TOML front matter between
-`+++` fences (fields: `status`, `created_at`, `updated_at`, and when present
-`published_at`, `publication_url`, `spark`), followed by the markdown-lite
-body. Parsing then serializing an essay file MUST reproduce its content,
-including fields the current version does not understand.
-
-#### Scenario: Essay round-trips through the store
-- **WHEN** an essay file is read and written back without modification
-- **THEN** the resulting file content is identical, unknown front-matter fields included
-
-#### Scenario: Essay writes are atomic
-- **WHEN** an essay is saved
-- **THEN** the file is replaced via write-temp-then-rename so no partially written essay file can exist
-
-### Requirement: Sparks stored as JSONL
-Sparks SHALL be stored in `sparks.jsonl`, one JSON object per line with `id`,
-`text`, and `created_at`. Capturing a spark appends a line; any future
-mutation rewrites the file atomically.
-
-#### Scenario: Capture appends one line
-- **WHEN** a spark is captured
-- **THEN** exactly one JSON line is appended to `sparks.jsonl` and previously stored lines are untouched
-
-#### Scenario: Sparks survive restart
-- **WHEN** the store is reopened on an existing data directory
-- **THEN** it returns every previously captured spark
-
-### Requirement: Sessions stored as JSONL
-Sessions SHALL be stored in `sessions.jsonl`, one JSON object per line with
-`essay_slug`, `started_at`, and `duration_min`. This change defines the
-format and round-trip code; nothing records sessions yet.
-
-#### Scenario: Session record round-trips
-- **WHEN** a session record is written and the file is read back
-- **THEN** the parsed record equals the original
 
 ### Requirement: One-time move out of the hidden directory
 When the data directory does not yet exist and the app's previous location
@@ -107,4 +60,3 @@ named deliberately.
 #### Scenario: A folder chosen at setup is never migrated into
 - **WHEN** a location was recorded at setup and an old platform directory exists
 - **THEN** the recorded directory is used as it is and no move is attempted
-

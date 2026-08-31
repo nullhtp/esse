@@ -1,18 +1,5 @@
-# summon-from-anywhere Specification
+## MODIFIED Requirements
 
-## Purpose
-
-esse as something installed rather than run: an application bundle in
-/Applications, a process that stays alive between sessions, and one
-system-wide key that brings it forward and puts it away again.
-
-It answers beginner problem #2 ("cannot start") from outside the app: the cost
-of beginning a session is one keypress from inside whatever you were doing,
-with no window to find and no launcher to open. It answers problem #1 in the
-same motion, since a spark is only worth catching while it is still in your
-head. Everything here is presence, not behaviour — what esse is on the machine
-between sessions, and how little of it shows.
-## Requirements
 ### Requirement: esse installs as a desktop application
 esse SHALL ship as a macOS application bundle — a release binary, an
 `Info.plist` naming the app and its identifier, and an icon — and SHALL be
@@ -44,20 +31,6 @@ reached by its key and by its window, not from the Dock.
 #### Scenario: Nothing in the Dock
 - **WHEN** esse is running
 - **THEN** it has no Dock icon and no menu bar of its own
-
-### Requirement: The app stays resident
-Closing the window SHALL put esse away rather than quit it: the essay is
-saved first, exactly as on every other way out, and the app keeps running
-and keeps answering the summon key. Quitting SHALL remain an explicit act —
-`cmd-q` — and SHALL save the essay the same way before it ends.
-
-#### Scenario: Closing the window keeps the app
-- **WHEN** the user closes the window while writing
-- **THEN** the essay on disk holds the text as last typed, the window is gone, and esse is still running
-
-#### Scenario: Quitting is still quitting
-- **WHEN** the user presses `cmd-q`
-- **THEN** the essay is saved and the app exits
 
 ### Requirement: One key summons esse from anywhere
 esse SHALL register a system-wide key combination — `ctrl-alt-e` unless the
@@ -115,4 +88,3 @@ it as a command to find.
 #### Scenario: Login start without setup
 - **WHEN** someone drives the bundle's launch-agent command directly, as before
 - **THEN** one command installs the launch agent and one removes it, unchanged
-
