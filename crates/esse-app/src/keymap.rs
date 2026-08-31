@@ -92,6 +92,7 @@ pub static SHORTCUTS: &[Shortcut] = &[
     shortcut!("down", shelf::Down, Scope::In(SHELF), "Down the column"),
     shortcut!("enter", shelf::Activate, Scope::In(SHELF), "Open what is selected"),
     shortcut!("cmd-d", shelf::Drawer, Scope::In(SHELF), "Shelved: show and hide"),
+    shortcut!("cmd-o", shelf::OpenFolder, Scope::In(SHELF), "The folder in Finder"),
     shortcut!("escape", shelf::Leave, Scope::In(SHELF), "Back to Today"),
     shortcut!("cmd-l", shelf::Leave, Scope::In(SHELF), "Back to Today"),
     // Write mode.

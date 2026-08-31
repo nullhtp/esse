@@ -19,6 +19,17 @@ pub enum Error {
         source: io::Error,
     },
 
+    /// The one-time move into the visible folder went wrong. Both paths are in
+    /// the message: the old directory is still standing, and a person with a
+    /// terminal can finish the move by hand.
+    #[error("could not move the data from {from} to {to}: {source}")]
+    Migration {
+        from: PathBuf,
+        to: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+
     /// A JSONL line that does not parse. Reported with its line number so the
     /// file can be repaired by hand — that is the point of a text format.
     #[error("{path}: line {line} is not a valid record: {source}")]
@@ -61,6 +72,17 @@ impl Error {
     pub(crate) fn io(path: impl Into<PathBuf>) -> impl FnOnce(io::Error) -> Error {
         move |source| Error::Io {
             path: path.into(),
+            source,
+        }
+    }
+
+    pub(crate) fn migration(
+        from: impl Into<PathBuf>,
+        to: impl Into<PathBuf>,
+    ) -> impl FnOnce(io::Error) -> Error {
+        move |source| Error::Migration {
+            from: from.into(),
+            to: to.into(),
             source,
         }
     }

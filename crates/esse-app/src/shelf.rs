@@ -10,6 +10,7 @@
 //! it with the same `start-from-spark` code the Write button uses — the WIP
 //! rule has one implementation, not two (design.md, D6).
 
+use std::path::Path;
 use std::rc::Rc;
 
 use esse_core::{Essay, EssayStatus, Spark};
@@ -25,7 +26,7 @@ use crate::theme;
 
 // Nothing on the Shelf is typed into, so the bare arrows and Enter are free to
 // mean the cards (design.md, D6).
-actions!(shelf, [Leave, Left, Right, Up, Down, Activate, Drawer]);
+actions!(shelf, [Leave, Left, Right, Up, Down, Activate, Drawer, OpenFolder]);
 
 /// What the screen asks the router for.
 pub enum ShelfEvent {
@@ -205,6 +206,13 @@ impl ShelfView {
     fn drawer_toggled(&mut self, _: &Drawer, _: &mut Window, cx: &mut Context<Self>) {
         self.drawer_open = !self.drawer_open;
         cx.notify();
+    }
+
+    /// The folder itself, handed to the system file browser. The Shelf shows
+    /// what the writer has; this opens the place it is actually kept
+    /// (shelf-screen spec, design.md D6).
+    fn open_folder(&mut self, _: &OpenFolder, _: &mut Window, cx: &mut Context<Self>) {
+        cx.open_with_system(&self.data.root);
     }
 
     /// Whether the card at `column`/`row` is the one under the highlight.
@@ -441,6 +449,7 @@ impl Render for ShelfView {
         let in_progress = self.in_progress_column(cx);
         let published = self.published_column();
         let drawer = self.drawer(cx);
+        let folder = folder_line(&self.data.root.clone(), cx);
 
         div()
             .key_context(keymap::SHELF)
@@ -459,6 +468,7 @@ impl Render for ShelfView {
             .on_action(cx.listener(Self::down))
             .on_action(cx.listener(Self::activate))
             .on_action(cx.listener(Self::drawer_toggled))
+            .on_action(cx.listener(Self::open_folder))
             .child(
                 // The way back, named for the room it leads to — the same
                 // quiet corner control the editor rooms use.
@@ -508,8 +518,36 @@ impl Render for ShelfView {
                             .child(in_progress)
                             .child(published),
                     )
-                    .child(drawer),
+                    .child(drawer)
+                    .child(folder),
             )
+    }
+}
+
+/// Where the files are, at the foot of the screen: a fact in the same muted
+/// register as the drawer's label, and the one action it offers is opening the
+/// folder (shelf-screen spec, design.md D5).
+fn folder_line(path: &Path, cx: &mut Context<ShelfView>) -> impl IntoElement {
+    div()
+        .id("folder")
+        .pt(px(14.))
+        .text_size(px(theme::SMALL_SIZE))
+        .text_color(rgb(theme::MUTED))
+        .cursor_pointer()
+        .hover(|style| style.text_color(rgb(theme::INK)))
+        .on_click(cx.listener(|this, _, window, cx| this.open_folder(&OpenFolder, window, cx)))
+        .child(SharedString::from(home_relative(
+            path,
+            dirs::home_dir().as_deref(),
+        )))
+}
+
+/// A path the way a person reads it, with the home directory written as `~`.
+fn home_relative(path: &Path, home: Option<&Path>) -> String {
+    match home.and_then(|home| path.strip_prefix(home).ok()) {
+        Some(rest) if rest.as_os_str().is_empty() => "~".to_string(),
+        Some(rest) => format!("~/{}", rest.display()),
+        None => path.display().to_string(),
     }
 }
 
@@ -551,6 +589,21 @@ mod tests {
             Spot { column: 0, row: 1 },
             "a short column clamps the row"
         );
+    }
+
+    /// The line says a path a person recognises, not one a program prints.
+    #[test]
+    fn the_folder_line_writes_the_home_directory_as_a_tilde() {
+        let home = Path::new("/Users/anton");
+
+        assert_eq!(
+            home_relative(Path::new("/Users/anton/Documents/Esse"), Some(home)),
+            "~/Documents/Esse"
+        );
+        assert_eq!(home_relative(home, Some(home)), "~");
+        // Somewhere else entirely — ESSE_DATA_DIR, or a machine with no home.
+        assert_eq!(home_relative(Path::new("/data/esse"), Some(home)), "/data/esse");
+        assert_eq!(home_relative(Path::new("/data/esse"), None), "/data/esse");
     }
 
     #[test]

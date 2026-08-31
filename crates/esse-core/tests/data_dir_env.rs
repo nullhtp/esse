@@ -1,12 +1,19 @@
-//! `ESSE_DATA_DIR` is process-wide state, so it gets a test binary to itself.
+//! `ESSE_DATA_DIR` and `HOME` are process-wide state, so they get a test binary
+//! to themselves — and one lock, so the two tests cannot overwrite each other's
+//! environment mid-run.
 
 use std::env;
+use std::fs;
+use std::sync::Mutex;
 
 use esse_core::{DataDir, SparkStore};
 use tempfile::TempDir;
 
+static ENVIRONMENT: Mutex<()> = Mutex::new(());
+
 #[test]
 fn esse_data_dir_replaces_the_platform_location() {
+    let _guard = ENVIRONMENT.lock().unwrap_or_else(|error| error.into_inner());
     let temp = TempDir::new().unwrap();
     let root = temp.path().join("elsewhere");
     env::set_var("ESSE_DATA_DIR", &root);
@@ -17,4 +24,26 @@ fn esse_data_dir_replaces_the_platform_location() {
 
     SparkStore::new(&dir).capture("сюда").unwrap().unwrap();
     assert!(root.join("sparks.jsonl").is_file());
+}
+
+/// A named path is a deliberate one — a test's directory, a second copy for
+/// development. Real essays must never walk into it (design.md, D4).
+#[test]
+fn a_named_directory_is_never_migrated_into() {
+    let _guard = ENVIRONMENT.lock().unwrap_or_else(|error| error.into_inner());
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    let old = home.join("Library/Application Support/esse");
+    fs::create_dir_all(&old).unwrap();
+    fs::write(old.join("sparks.jsonl"), "{\"text\":\"older\"}\n").unwrap();
+
+    let named = temp.path().join("named");
+    env::set_var("HOME", &home);
+    env::set_var("ESSE_DATA_DIR", &named);
+
+    let dir = DataDir::open().unwrap();
+
+    assert_eq!(dir.root(), named);
+    assert_eq!(fs::read_dir(&named).unwrap().count(), 0);
+    assert!(old.join("sparks.jsonl").is_file());
 }

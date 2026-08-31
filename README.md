@@ -90,7 +90,8 @@ gives its keys to the list: `↑`/`↓` walk it (the freshest is highlighted),
 
 **The Shelf.** `←`/`→` between columns, `↑`/`↓` down a column, `enter` opens
 what is selected (a spark starts an essay only while the slot is free), `cmd-d`
-the shelved drawer, `esc` or `cmd-l` back to Today.
+the shelved drawer, `cmd-o` the data folder in Finder, `esc` or `cmd-l` back to
+Today.
 
 **The editor.** Text keys are the ordinary ones: arrows and `shift`+arrows,
 `alt`+arrows by words, `home`/`end` by the visible line, `cmd-c`/`cmd-x`/
@@ -129,7 +130,8 @@ seconds.
 
 ## Data
 
-Everything is plain files in `~/Library/Application Support/esse`:
+Everything is plain files in `~/Documents/Esse` — a folder you can open, read
+and back up like any other:
 
 ```
 sparks.jsonl        sparks, one JSON object per line
@@ -137,8 +139,14 @@ sessions.jsonl      writing sessions: essay, start, minutes
 essays/<slug>.md    an essay: TOML front matter between +++ and the text
 ```
 
+The Shelf says the path at its foot and `cmd-o` opens the folder, so the app
+never has to be asked where the writing went.
+
 No database and no sync: the files are read and edited by hand and survive any
-refactoring. `ESSE_DATA_DIR` overrides the directory — that is for development
+refactoring. An installation from before the folder was made visible moves
+itself out of `~/Library/Application Support/esse` on the first launch, once
+and whole; if both folders exist, the visible one is used and the old one is
+left alone. `ESSE_DATA_DIR` overrides the directory — that is for development
 and tests, not a user setting.
 
 ## Development
