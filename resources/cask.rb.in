@@ -9,7 +9,9 @@ cask "esse" do
   desc "Conveyor from a spark to a published essay"
   homepage "https://github.com/nullhtp/esse"
 
-  depends_on macos: ">= :ventura"
+  # Ventura or newer: `depends_on macos:` compares with >= on its own, and the
+  # string form that said so out loud is deprecated.
+  depends_on macos: :ventura
   depends_on arch: :arm64
 
   app "Esse.app"
