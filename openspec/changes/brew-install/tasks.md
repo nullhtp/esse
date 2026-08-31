@@ -24,7 +24,7 @@
 ## 3. The cask
 
 - [x] 3.1 `resources/cask.rb.in`: name, homepage, `app "Esse.app"`, macOS and
-      arm64 requirements (D1, D6).
+      arm64 requirements (D1, D6); `brew audit --cask` clean.
 - [x] 3.2 `postflight` clears the quarantine flag, and `caveats` says why and
       what it means (D3).
 - [x] 3.3 `uninstall` quits the app and unloads the agent; `zap` takes the
@@ -33,9 +33,9 @@
 
 ## 4. Publishing
 
-- [ ] 4.1 Tag `v0.1.0`, run `make release`.
-- [ ] 4.2 Put the rendered cask in `nullhtp/homebrew-tap` as `Casks/esse.rb`.
-- [ ] 4.3 Install it on this machine from the tap and open the app: the whole
+- [x] 4.1 Tag `v0.1.0`, run `make release`.
+- [x] 4.2 Put the rendered cask in `nullhtp/homebrew-tap` as `Casks/esse.rb`.
+- [x] 4.3 Install it on this machine from the tap and open the app: the whole
       point is that this path works.
 
 ## 5. The docs
