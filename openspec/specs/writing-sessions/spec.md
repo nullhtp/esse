@@ -9,8 +9,8 @@ session ends.
 This is the answer to beginner problem #4 ("gives up after two weeks"): the
 session is the thing that succeeds, however the essay itself went. The target
 is a fixed constant rather than a setting, and per the anti-features list
-nothing counts, displays, or streaks what is recorded — the dotted calendar
-that reads the history comes later.
+nothing counts or streaks what is recorded — the dotted calendar on the Today
+screen reads the history to say which days had writing, and nothing more.
 
 ## Requirements
 
@@ -36,8 +36,8 @@ writing past the target is allowed indefinitely.
 ### Requirement: Sessions are recorded
 Leaving Write mode SHALL append a session record — `essay_slug`,
 `started_at`, `duration_min` — to the session history. Sessions shorter than
-one minute SHALL NOT be recorded. Nothing displays the history yet; the
-dotted calendar reads it in a later stage.
+one minute SHALL NOT be recorded. The dotted session calendar on the Today
+screen reads this history; nothing else displays, counts, or aggregates it.
 
 #### Scenario: A finished session lands in the history
 - **WHEN** the user leaves Write mode after writing for at least a minute
@@ -46,3 +46,7 @@ dotted calendar reads it in a later stage.
 #### Scenario: An accidental peek is not a session
 - **WHEN** the user leaves Write mode less than a minute after entering
 - **THEN** no session record is written
+
+#### Scenario: A recorded session shows up on Today
+- **WHEN** the user finishes a session and returns to the Today screen
+- **THEN** the dot for today in the session calendar is filled

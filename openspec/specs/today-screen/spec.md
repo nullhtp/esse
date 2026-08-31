@@ -6,20 +6,28 @@ The app's main screen and entry point — the frame the whole product opens
 into, in a single window.
 
 It holds the big "Write" button, the spark input, and the spark list, and it
-opens capture-ready so that recording an idea is launch → type → Enter. Later
-stages extend the same screen with the row of published essays and the session
-dots.
+opens capture-ready so that recording an idea is launch → type → Enter. Below
+them sit the row of published essays and the dotted session calendar — what
+the writing has come to, kept quiet enough that the screen stays a launchpad
+rather than a dashboard.
 
 ## Requirements
 
 ### Requirement: Today is the start screen
-The app SHALL open directly into the Today screen in a single window. In this
-stage the screen contains the "Write" button, the spark input, and the spark
-list; later stages extend it with the published row and the session dots.
+The app SHALL open directly into the Today screen in a single window. The
+screen contains the "Write" button, the spark input, the spark list, the row
+of published essays, and the dotted session calendar. The published row and
+the session calendar MUST stay visually subordinate to the "Write" button and
+the spark input; their presence rules are defined by the published-row and
+session-calendar capabilities.
 
 #### Scenario: Launch lands on Today
 - **WHEN** the app is launched
-- **THEN** the Today screen is shown with the "Write" button, the spark input, and the spark list visible
+- **THEN** the Today screen is shown with the "Write" button, the spark input, and the spark list visible, plus the published row and the session calendar when they have data to show
+
+#### Scenario: The showcase does not outshine the launchpad
+- **WHEN** the Today screen is shown with published essays and session history present
+- **THEN** the "Write" button remains the most prominent element and the spark input still holds keyboard focus on launch
 
 ### Requirement: The Write button is the primary action
 The Today screen SHALL show one big "Write" button as its most prominent
