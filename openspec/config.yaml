@@ -6,7 +6,7 @@ context: |
   esse is not an editor — it is a conveyor from spark to published essay.
   Target user: someone who wants writing essays to become a habit and publishes
   publicly (blog, newsletter, channel). First version is a personal tool for
-  Anton, with a possible product later. Full concept: CONCEPT.md (Russian).
+  Anton, with a possible product later. Full concept: CONCEPT.md.
 
   The product exists to solve exactly five beginner problems, and nothing else:
   nothing to write about; cannot start; drafting and editing get mixed; gives up
@@ -59,8 +59,8 @@ context: |
 
   ## Tech
 
-  - Native Rust desktop GUI. Framework NOT yet chosen: gpui / iced / egui.
-    Resolve it with a live-markdown-editor prototype before main development.
+  - Native Rust desktop GUI on gpui (the Zed engine), chosen at stage 0 against
+    a live-markdown-editor prototype and pinned in the workspace manifest.
   - Markdown live rendering (Typora-like: markdown renders in place as you type,
     no split preview, no raw syntax in finished text) is written by hand on top
     of pulldown-cmark or comrak. This is the most expensive part of the project
@@ -70,14 +70,19 @@ context: |
 
   ## Conventions
 
-  - OpenSpec artifacts, code, comments and commit messages: English.
-  - CONCEPT.md and README.md: Russian (they are the human-facing docs).
+  - Everything written down is English: OpenSpec artifacts, code, comments,
+    commit messages, and the human-facing docs (README.md, CONCEPT.md,
+    PLAN.md). The UI copy is English too.
   - Conventional Commits.
-  - Glossary (Russian concept term -> English artifact term):
-    искра -> spark; черновик -> draft; правка -> editing;
+  - Anton thinks about this product in Russian, so the conversation may be in
+    Russian. The glossary (Russian concept term -> the English term that is
+    written down): искра -> spark; черновик -> draft; правка -> editing;
     режим «Пишу» -> Write mode; режим «Правлю» -> Edit mode;
     сессия -> session; полка -> shelf; «в стол» -> shelved;
     копилка искр -> spark box; опубликовано -> published.
+  - Russian text stays in the tests that need it: the transliteration table and
+    the multibyte fixtures are testing exactly that, and lose their point in
+    ASCII.
 
 rules:
   proposal:

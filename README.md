@@ -1,169 +1,170 @@
 # esse
 
-Это не редактор, а конвейер — от искры до опубликованного эссе.
+This is not an editor, it is a conveyor — from a spark to a published essay.
 
-Десктопное приложение для того, кто хочет ввести написание эссе в свою жизнь.
-Пять механик против пяти проблем новичка — и больше ничего.
+A desktop app for someone who wants writing essays to become part of their
+life. Five mechanics against five beginner problems, and nothing else.
 
 ```
-Искра  →  Черновик (свободное письмо)  →  Правка  →  Публикация
+Spark  →  Draft (free writing)  →  Editing  →  Published
 ```
 
-Жёсткое ограничение: **в работе только одно эссе**. Искр может быть сколько
-угодно.
+A hard constraint: **only one essay in progress**. Sparks are unlimited.
 
-Полная концепция, включая анти-функции и открытые вопросы, — в [CONCEPT.md](CONCEPT.md).
+The full concept, including the anti-features and the open questions, is in
+[CONCEPT.md](CONCEPT.md).
 
-## Статус
+## Status
 
-Пройден этап 3: в приложении можно писать и править. Экран «Сегодня» — кнопка
-«Писать», строка для искры и список искр; из искры рождается черновик, черновик
-пишется в полноэкранном режиме письма, сессии записываются на диск, а правка
-живёт в отдельной комнате, на которую эссе переключается явно.
+The conveyor is closed and in daily use: a spark becomes a draft, the draft is
+written fullscreen, editing happens in its own room, and an essay ends by being
+published or deliberately shelved. Today carries the session dots and the row
+of published essays; the Shelf shows the whole conveyor at once; the whole app
+is driven from the keyboard, and `cmd-h` and `cmd-shift-h` answer for the keys
+and for the method.
 
-Стек — нативный Rust-GUI под десктоп; фреймворк выбран на этапе 0 — **gpui**
-(движок Zed). Парсер `markdown-lite` из прототипа переехал в
-[crates/markdown-lite](crates/markdown-lite); редактор написан заново — с
-переносом строк, которого в прототипе не было. Код прототипа остался в
-[prototypes/](prototypes/) и заморожен.
+The stack is a native Rust GUI: **gpui**, the engine behind Zed, chosen at
+stage 0 against a live-markdown prototype. The `markdown-lite` parser moved out
+of the prototype into [crates/markdown-lite](crates/markdown-lite); the editor
+was rewritten with line wrapping, which the prototype never had. The prototype
+code stays in [prototypes/](prototypes/), frozen.
 
-Следующий шаг — этап 4: публикация и Полка, на которых конвейер замыкается.
+## How it works
 
-## Как это работает
+**Spark.** A line on the Today screen, Enter — the thought is kept. There can
+be any number of sparks; they sit in a list, newest first.
 
-**Искра.** Строка на экране «Сегодня», Enter — мысль сохранена. Искр может быть
-сколько угодно, они лежат списком, новые сверху.
+**Starting.** The Write button is the only way into the editor; an empty
+document does not exist in this app.
 
-**Начало.** Кнопка «Писать» — единственный вход в редактор; пустого документа
-в приложении не существует.
+- if an essay is already in progress, the button opens it;
+- if not, the list of sparks becomes a choice: click the one to start from;
+- if there are no sparks, the app says so: a spark comes first.
 
-- если эссе уже в работе — кнопка открывает его;
-- если нет — список искр становится выбором: щёлкните ту, с которой начать;
-- если искр нет — приложение так и скажет: сначала нужна искра.
+The chosen spark is **spent**: its text goes into the new draft's front matter,
+the file name is derived from it (Cyrillic is transliterated: "почему эссе" →
+`essays/pochemu-esse.md`), and the spark leaves the list.
 
-Выбранная искра **тратится**: её текст уходит в front matter нового черновика,
-из него же получается имя файла (кириллица транслитерируется: «почему эссе» →
-`essays/pochemu-esse.md`), а из списка искра исчезает.
+**Writing.** Fullscreen, dark, nothing but the text: markup renders in place,
+raw characters show only on the cursor's line, that line stays centred, and
+everything above it is dimmed. There is no scrolling — the screen follows the
+cursor. The text saves itself: a second after you stop typing, and always on
+leaving, on closing the window and on quitting.
 
-**Письмо.** Полный экран, тёмный фон, ничего кроме текста: разметка рисуется
-на месте, сырые символы видны только на строке с курсором, строка с курсором
-держится по центру, написанное выше приглушается. Прокрутки нет — экран следует
-за курсором. Текст сохраняется сам: через секунду после того, как вы перестали
-печатать, и обязательно при выходе, закрытии окна и выходе из приложения.
+**Session.** It starts together with Writing mode; the minutes tick quietly in
+the corner. At the twentieth minute the counter softly turns into "session
+done" — no modal, no sound, and you can keep writing as long as you like.
+`Esc` leaves: the essay is saved, the session is recorded (anything under a
+minute is not), and the app returns to Today.
 
-**Сессия.** Начинается вместе с режимом письма; в углу тихо идут минуты.
-На двадцатой минуте счётчик мягко меняется на «сессия сделана» — без модальных
-окон и звуков, писать можно сколько угодно дальше. `Esc` выходит: эссе
-сохраняется, сессия записывается (короче минуты — не записывается), приложение
-возвращается на «Сегодня».
+**Editing.** A different room, and it shows from the doorway: a light
+background, every line at full strength, nothing dimmed, scrolling free — the
+screen no longer hangs on the cursor. The text saves itself the same way. No
+session runs here: editing is not writing, and its minutes are not counted.
 
-**Правка.** Другая комната, и это видно с порога: светлый фон, весь текст в
-полную силу, ничего не приглушено, прокрутка свободная — экран больше не висит
-на курсоре. Текст сохраняется так же сам. Сессия здесь не идёт: правка — не
-письмо, и её минуты не считаются.
+**Switching.** In the corner of each mode there is a quiet label with the name
+of the neighbouring room ("Editing" while writing, "Writing" while editing);
+it is also `cmd-e`, the same gesture both ways. Switching saves the essay and
+moves it between the draft and editing states — so the mode on screen and the
+state on disk cannot drift apart. The Write button on Today opens the essay in
+whichever mode it was left in.
 
-**Переключение.** В углу каждого режима — тихая надпись с именем соседней
-комнаты («Правлю» в письме, «Пишу» в правке); она же `cmd-e`, один и тот же
-жест в обе стороны. Переключение сохраняет эссе и переводит его между
-состояниями «черновик» и «правка» — то есть режим на экране и состояние эссе
-на диске не могут разойтись. Кнопка «Писать» на «Сегодня» открывает эссе в том
-режиме, в каком оно осталось.
+## The keyboard
 
-## Клавиатура
+The whole app is driven from the keyboard: capture a spark, start an essay from
+it, walk the Shelf, mark up the text, finish and publish — the mouse is needed
+nowhere.
 
-Приложение водится с клавиатуры целиком: записать искру, начать с неё эссе,
-пройти по Полке, разметить текст, закончить и опубликовать — мышь не нужна
-нигде.
+None of it has to be memorised: **`cmd-h`** shows a sheet with exactly the
+combinations that work where you are standing. Any next key dismisses it and
+does nothing else, so you can glance at it mid-sentence. **`cmd-shift-h`**
+answers the heavier question — not what can be pressed here, but how to work
+here: the method for this place, step by step.
 
-Помнить это наизусть не требуется: **`cmd-h`** показывает подсказку — список
-ровно тех сочетаний, которые работают там, где вы сейчас стоите. Любая
-следующая клавиша её убирает и больше ничего не делает, так что подсмотреть
-можно и посреди фразы. Других подсказок нет: постоянных надписей на экранах и
-настройки клавиш в приложении не будет.
+**Today.** `cmd-enter` — Write, `cmd-l` — the Shelf. Both take a modifier, so
+ordinary typing always lands in the spark line.
 
-**Сегодня.** `cmd-enter` — «Писать», `cmd-l` — Полка. Оба с модификатором:
-обычный набор всегда попадает в строку искры, включая кириллицу.
+**Choosing a spark.** When Write asks which spark to start from, the spark line
+gives its keys to the list: `↑`/`↓` walk it (the freshest is highlighted),
+`enter` starts from it, `esc` changes your mind.
 
-**Выбор искры.** Когда «Писать» просит выбрать искру, строка искры отдаёт
-клавиши списку: `↑`/`↓` — по списку (подсвечена самая свежая), `enter` —
-начать с неё, `esc` — передумать.
+**The Shelf.** `←`/`→` between columns, `↑`/`↓` down a column, `enter` opens
+what is selected (a spark starts an essay only while the slot is free), `cmd-d`
+the shelved drawer, `esc` or `cmd-l` back to Today.
 
-**Полка.** `←`/`→` — между столбцами, `↑`/`↓` — по столбцу, `enter` — открыть
-выбранное (искра начинает эссе, только пока слот свободен), `cmd-d` — стол,
-`esc` или `cmd-l` — назад на «Сегодня».
+**The editor.** Text keys are the ordinary ones: arrows and `shift`+arrows,
+`alt`+arrows by words, `home`/`end` by the visible line, `cmd-c`/`cmd-x`/
+`cmd-v`, `cmd-z` / `cmd-shift-z`, `cmd-a`. Markup is on the keyboard too, the
+same in both modes: `cmd-b` bold, `cmd-i` italic, `cmd-1`/`cmd-2`/`cmd-3`
+headings. Every press edits the markup characters themselves — what you would
+have typed by hand — and one `cmd-z` takes it back. `cmd-e` switches modes,
+`esc` leaves.
 
-**Редактор.** Клавиши текста обычные: стрелки и `shift`+стрелки, `alt`+стрелки
-по словам, `home`/`end` по видимой строке, `cmd-c`/`cmd-x`/`cmd-v`, `cmd-z` /
-`cmd-shift-z`, `cmd-a`. Разметка — тоже с клавиатуры и одинаково в обоих
-режимах: `cmd-b` — жирный, `cmd-i` — курсив, `cmd-1`/`cmd-2`/`cmd-3` —
-заголовок. Каждое нажатие правит сами символы разметки — то, что вы бы
-напечатали руками, — и откатывается одним `cmd-z`. `cmd-e` — сменить режим,
-`esc` — выход.
+**Finishing an essay.** In Editing, `cmd-enter` opens the completion panel.
+Inside it `tab` (and `←`/`→`) walks the actions, `enter` chooses, `esc` closes.
+Until you take a step nothing is highlighted: a stray `enter` cannot publish an
+essay.
 
-**Конец эссе.** В правке `cmd-enter` открывает «Закончить». Внутри `tab` (и
-`←`/`→`) ходит по действиям, `enter` выбирает, `esc` закрывает. Пока вы не
-сделали шаг, не подсвечено ничего: случайный `enter` не опубликует эссе.
+## Building and running
 
-## Сборка и запуск
-
-Нужен Rust 1.97.1 — тулчейн закреплён в `rust-toolchain.toml`, rustup поставит
-его сам. На macOS gpui компилирует шейдеры и требует компонент Metal Toolchain;
-Xcode 26 больше не ставит его по умолчанию (~700 МБ):
+Rust 1.97.1 is required — the toolchain is pinned in `rust-toolchain.toml` and
+rustup installs it by itself. On macOS gpui compiles shaders and needs the
+Metal Toolchain component, which Xcode 26 no longer installs by default
+(~700 MB):
 
 ```
 xcodebuild -downloadComponent MetalToolchain
 ```
 
-Дальше:
+Then:
 
 ```
-cargo run -p esse-app      # запустить приложение
-cargo test                 # все тесты
-cargo test -p esse-core    # только ядро: секунды, без сборки gpui
+cargo run -p esse-app      # run the app
+cargo test                 # everything
+cargo test -p esse-core    # the core only: seconds, no gpui build
 ```
 
-Первая сборка тянет ~700 зависимостей gpui и идёт минутами, последующие —
-секундами.
+The first build pulls ~700 gpui dependencies and takes minutes; later ones take
+seconds.
 
-## Данные
+## Data
 
-Всё лежит простыми файлами в `~/Library/Application Support/esse`:
-
-```
-sparks.jsonl        искры, по одному JSON-объекту на строку
-sessions.jsonl      сессии письма: эссе, начало, длительность в минутах
-essays/<slug>.md    эссе: TOML front matter между +++ и текст
-```
-
-Никакой базы и синхронизации: файлы читаются и правятся руками и переживают
-любой рефакторинг. `ESSE_DATA_DIR` переопределяет каталог — это для разработки
-и тестов, а не настройка.
-
-## Разработка
-
-Проект ведётся через [OpenSpec](https://github.com/Fission-AI/OpenSpec):
-сначала спека, потом код. Артефакты OpenSpec и коммиты — на английском,
-человеческие доки — на русском.
+Everything is plain files in `~/Library/Application Support/esse`:
 
 ```
-openspec list          # изменения в работе
-openspec list --specs  # действующие спеки
-openspec view          # интерактивный дашборд
+sparks.jsonl        sparks, one JSON object per line
+sessions.jsonl      writing sessions: essay, start, minutes
+essays/<slug>.md    an essay: TOML front matter between +++ and the text
 ```
 
-Команды в Claude Code: `/opsx:explore`, `/opsx:propose`, `/opsx:apply`,
+No database and no sync: the files are read and edited by hand and survive any
+refactoring. `ESSE_DATA_DIR` overrides the directory — that is for development
+and tests, not a user setting.
+
+## Development
+
+The project is run through [OpenSpec](https://github.com/Fission-AI/OpenSpec):
+the spec first, then the code.
+
+```
+openspec list          # changes in progress
+openspec list --specs  # the specs in force
+openspec view          # the interactive dashboard
+```
+
+Commands in Claude Code: `/opsx:explore`, `/opsx:propose`, `/opsx:apply`,
 `/opsx:archive`.
 
-Структура:
+The structure:
 
 ```
-CONCEPT.md            концепция продукта
-PLAN.md               план реализации по этапам
-crates/esse-core/     модель данных и хранение — без GUI, тестируется за секунду
-crates/markdown-lite/ парсер разметки: заголовки, **жирный**, *курсив*
-crates/esse-app/      приложение на gpui: «Сегодня» и редактор в двух режимах
-prototypes/           замороженный прототип редактора с этапа 0
-openspec/config.yaml  контекст проекта для AI-ассистентов
-openspec/specs/       действующие спеки (появятся после первого архива)
-openspec/changes/     предложения в работе
+CONCEPT.md            the product concept
+PLAN.md               the implementation plan, stage by stage
+crates/esse-core/     the data model and storage — no GUI, tests in a second
+crates/markdown-lite/ the markup parser: headings, **bold**, *italic*
+crates/esse-app/      the gpui app: Today, the Shelf and the editor's two modes
+prototypes/           the frozen stage 0 editor prototype
+openspec/config.yaml  the project context for AI assistants
+openspec/specs/       the specs in force
+openspec/changes/     proposals in progress
 ```

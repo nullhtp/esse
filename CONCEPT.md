@@ -1,203 +1,220 @@
-# esse — концепция
+# esse — the concept
 
-**Одна фраза:** это не редактор, а конвейер — от искры до опубликованного эссе.
+**In one line:** this is not an editor, it is a conveyor — from a spark to a
+published essay.
 
-Редакторов в мире достаточно. Начинающий эссеист бросает писать не потому, что ему
-не хватает редактора, а потому что спотыкается о пять конкретных проблем. esse — это
-пять механик против этих пяти проблем, и больше ничего.
-
----
-
-## Пользователь
-
-Человек, который хочет ввести написание эссе в свою жизнь. Цель — публичные тексты:
-блог, рассылка, канал. Он не писатель, у него нет привычки, нет уверенности и нет
-процесса. Первая версия делается «для себя» (для Антона), с прицелом на возможный
-продукт позже.
-
-### Пять проблем новичка
-
-1. **«Не о чем писать».** Идеи на самом деле приходят каждый день — в разговоре,
-   в душе, за чтением — но не фиксируются и забываются. К моменту, когда человек
-   садится писать, в голове пусто.
-2. **«Не могу начать».** Пустая страница — самый сильный барьер. Начало сессии
-   стоит непропорционально дорого.
-3. **«Пишу и сразу правлю, ничего не заканчиваю».** Новичок редактирует первое
-   предложение полчаса. Черновик и редактура смешаны в один процесс, и процесс
-   не сходится.
-4. **«Забрасываю через две недели».** Единица прогресса — «готовое эссе» — слишком
-   крупная. Между сессиями нет ощущения движения, привычка не закрепляется.
-5. **«Стыдно публиковать, всё умирает в черновиках».** Текст «ещё не готов»
-   бесконечно. Без публикации нет цикла завершения — и нет причины начинать
-   следующее эссе.
+The world has enough editors. A beginning essayist does not stop writing for
+want of an editor; they stop because they trip over five specific problems.
+esse is five mechanics against those five problems, and nothing else.
 
 ---
 
-## Конвейер
+## The user
+
+Someone who wants writing essays to become part of their life. The goal is
+public texts: a blog, a newsletter, a channel. They are not a writer, they have
+no habit, no confidence and no process. The first version is built "for
+myself" (for Anton), with a possible product later.
+
+### The five beginner problems
+
+1. **"Nothing to write about."** Ideas actually arrive every day — in a
+   conversation, in the shower, while reading — but they are never captured and
+   are forgotten. By the time the person sits down to write, their head is
+   empty.
+2. **"I cannot start."** The blank page is the strongest barrier. Beginning a
+   session costs disproportionately much.
+3. **"I write and edit at once, and finish nothing."** A beginner edits the
+   first sentence for half an hour. Drafting and editing are mixed into one
+   process, and that process never converges.
+4. **"I give up after two weeks."** The unit of progress — "a finished essay" —
+   is too large. Between sessions there is no sense of movement, and the habit
+   never sets.
+5. **"I am ashamed to publish, everything dies in drafts."** The text is "not
+   ready yet" forever. Without publishing there is no completion cycle — and no
+   reason to start the next essay.
+
+---
+
+## The conveyor
 
 ```
-Искра  →  Черновик (свободное письмо)  →  Правка  →  Публикация
+Spark  →  Draft (free writing)  →  Editing  →  Published
 ```
 
-Каждое эссе живёт в одном из этих состояний. Приложение всегда знает, что делать
-дальше, и подсказывает следующий шаг.
+Every essay lives in exactly one of these states. The app always knows what
+comes next and suggests that step.
 
-**Опинионированное упрощение: в работе только одно эссе (WIP-лимит = 1).**
-Нельзя начать новое, пока текущее не опубликовано или осознанно не отправлено
-«в стол». Это убирает прокрастинацию выбором и кладбище из десяти начатых
-черновиков. Искр может быть сколько угодно — эссе в работе одно.
-
----
-
-## Пять механик
-
-### 1. Копилка искр
-Мгновенная фиксация идеи одной строкой: открыл — записал — закрыл, меньше пяти
-секунд. Искра — это не заголовок и не обязательство, а зерно: «почему все советы
-о привычках не работают», «история с потерянным рюкзаком». Копилка снимает
-проблему «не о чем писать»: к моменту сессии всегда есть из чего выбрать.
-
-### 2. Старт из искры — пустой страницы не существует
-Сессия письма всегда начинается одним из двух способов: продолжить текущее эссе
-или развернуть искру в новый черновик. Экрана «создать пустой документ»
-в приложении нет в принципе.
-
-### 3. Два режима: «Пишу» и «Правлю»
-Главная механика приложения. Она физически разделяет два процесса, которые новичок
-губительно смешивает:
-
-- **«Пишу»** — полноэкранный поток: виден только текущий фрагмент (typewriter-режим,
-  курсор в центре), возвращаться назад и править неудобно намеренно. Задача режима —
-  вылить текст *плохим*. Количество, не качество.
-- **«Правлю»** — виден весь текст, спокойная вёрстка, задача — резать, переставлять,
-  уточнять. Качество, не количество.
-
-Переключение — явное действие (и визуально режимы выглядят по-разному). Так
-приложение учит главному навыку эссеиста: **сначала написать плохо, потом сделать
-хорошо.**
-
-### 4. Сессии, а не дедлайны
-Единица привычки — сессия 15–25 минут, а не «готовое эссе». Каждая сессия — это
-завершённый успех, даже если эссе не дописано. Ориентир ритма: ~3 сессии в неделю
-≈ эссе в одну-две недели. История сессий — ненавязчивый календарь-пунктир, без
-давящих стриков и чувства вины за пропуск.
-
-### 5. Публикация = завершение
-Эссе заканчивается только двумя способами: **опубликовано** (экспорт в markdown или
-копирование в блог + поле «ссылка на публикацию») или осознанно **«в стол»**.
-Главная витрина прогресса — растущий ряд опубликованных эссе. Не счётчик слов,
-не стрик — полка того, что дошло до людей.
+**An opinionated simplification: only one essay in progress (WIP limit = 1).**
+A new one cannot be started until the current one is published or deliberately
+shelved. This removes procrastination-by-choice and the graveyard of ten
+half-started drafts. Sparks are unlimited — the essay in progress is one.
 
 ---
 
-## Экраны
+## The five mechanics
 
-Всего три.
+### 1. The spark box
+Capturing an idea as a single line, instantly: open, write, close — under five
+seconds. A spark is not a title and not a commitment, it is a seed: "why all
+habit advice fails", "the story of the lost backpack". The box removes
+"nothing to write about": by the time the session starts there is always
+something to choose from.
 
-### 1. «Сегодня» (главный)
-- Одна большая кнопка **«Писать»**: продолжает текущее эссе или, если его нет,
-  предлагает выбрать искру.
-- Строка быстрого ввода искры.
-- Внизу — ряд опубликованных эссе (обложки-карточки) и тонкий пунктир сессий
-  за последние недели.
+### 2. Start from a spark — there is no blank page
+A writing session always begins one of two ways: continue the current essay, or
+unfold a spark into a new draft. A "create an empty document" screen does not
+exist in the app at all.
 
-### 2. Редактор
-- Полноэкранный, без панелей. Markdown-lite: `#`, `*курсив*`, `**жирный**` — и всё.
-- Ориентир по ощущению — **Typora**: markdown рендерится на месте по мере набора,
-  без сплит-превью и без сырых символов разметки в готовом тексте.
-- Переключатель **Пишу / Правлю** (см. механику 3).
-- Таймер сессии — тихий, в углу; по истечении мягко предлагает закончить.
+### 3. Two modes: Writing and Editing
+The central mechanic. It physically separates the two processes a beginner
+ruinously mixes:
 
-### 3. Полка
-Три колонки: **Искры | В работе | Опубликовано**. Из искры можно начать эссе
-(если слот «В работе» свободен), у опубликованных видны даты и ссылки.
-Отдельно — свёрнутый «стол» для осознанно отложенного.
+- **Writing** — a fullscreen flow: only the current fragment is visible
+  (typewriter mode, cursor centred), going back and fixing things is awkward on
+  purpose. The job of this mode is to pour the text out *badly*. Volume, not
+  quality.
+- **Editing** — the whole text is visible, the layout is calm, the job is to
+  cut, rearrange and sharpen. Quality, not volume.
 
-### Первая неделя с приложением
-- **День 1.** Открыл — приложение просит записать 3–5 искр (единственный онбординг).
-  Выбрал одну, сессия 15 минут в режиме «Пишу». Получился сырой кусок текста. Это успех.
-- **Дни 2–4.** По дороге закинул пару искр. Ещё две сессии «Пишу» — черновик дописан
-  до конца, плохой, но целый.
-- **Дни 5–6.** Сессия в режиме «Правлю»: порезал, переставил. Второй заход — дочистил.
-- **День 7.** Нажал «Опубликовать», вставил текст в блог, сохранил ссылку.
-  На полке — первое эссе. Слот «В работе» свободен, в копилке ждут пять искр.
+Switching is an explicit action (and the two modes look visibly different).
+That is how the app teaches the essayist's core skill: **first write it badly,
+then make it good.**
 
----
+### 4. Sessions, not deadlines
+The unit of the habit is a 15–25 minute session, not "a finished essay". Every
+session is a completed success, even when the essay is not done. The rhythm to
+aim at: ~3 sessions a week ≈ an essay every one or two weeks. Session history
+is an unobtrusive dotted calendar, with no oppressive streaks and no guilt for
+a missed day.
 
-## Технологический ориентир
-
-- **Эталон редактора — Typora:** живой рендеринг markdown прямо в тексте по мере
-  набора — без сплит-превью и режима «исходника», минимализм, ничего кроме текста.
-  esse берёт это ощущение и добавляет поверх конвейер и режимы «Пишу»/«Правлю».
-- **Выбранный стек — нативный Rust-GUI, десктоп.** Кандидаты-фреймворки:
-  - **gpui** (движок Zed) — создан ровно для текстового редактора: GPU-рендеринг,
-    лучшая в Rust работа с текстом; минус — молодой, слабо документирован,
-    API нестабилен.
-  - **iced** — зрелее, Elm-архитектура, хорошо ложится на приложение из трёх
-    экранов; продвинутую работу с текстом придётся дописывать своим виджетом.
-  - **egui** — самый быстрый старт (immediate mode), но типографика слабее —
-    годится для прототипа, вряд ли для финального «ощущения Typora».
-  - Live-рендеринг markdown в любом случае пишем сами (парсер —
-    **pulldown-cmark** или **comrak**). Это самая дорогая часть проекта —
-    с неё и начинать.
+### 5. Publishing is completion
+An essay ends in exactly two ways: **published** (exported to markdown or
+copied into a blog, plus a "publication link" field) or deliberately
+**shelved**. The main display of progress is the growing row of published
+essays. Not a word count, not a streak — the shelf of what reached people.
 
 ---
 
-## Анти-функции
+## The screens
 
-Сознательно НЕ делаем — и почему:
+Three in total.
 
-| Чего нет | Почему |
+### 1. Today (the main one)
+- One big **Write** button: it continues the current essay or, if there is
+  none, offers a spark to start from.
+- A quick spark input line.
+- At the bottom — the row of published essays (cover cards) and a thin dotted
+  line of the last weeks' sessions.
+
+### 2. The editor
+- Fullscreen, no panels. Markdown-lite: `#`, `*italic*`, `**bold**` — that is
+  all.
+- The feeling to aim at is **Typora**: markdown renders in place as you type,
+  with no split preview and no raw markup left in finished text.
+- The **Writing / Editing** switch (see mechanic 3).
+- The session timer — quiet, in the corner; when the time is up it gently
+  suggests stopping.
+
+### 3. The Shelf
+Three columns: **Sparks | In progress | Published**. An essay can be started
+from a spark (if the "in progress" slot is free); published ones show their
+dates and links. Separately, a collapsed drawer for what was deliberately set
+aside.
+
+### The first week with the app
+- **Day 1.** Open it — the app asks for 3–5 sparks (the only onboarding). Pick
+  one, a 15-minute session in Writing mode. The result is a raw piece of text.
+  That is a success.
+- **Days 2–4.** A couple of sparks tossed in along the way. Two more Writing
+  sessions — the draft is finished end to end: bad, but whole.
+- **Days 5–6.** A session in Editing mode: cut, rearranged. A second pass —
+  cleaned up.
+- **Day 7.** Press Publish, paste the text into the blog, save the link. The
+  first essay is on the shelf. The "in progress" slot is free, and five sparks
+  are waiting in the box.
+
+---
+
+## Technical direction
+
+- **The editor benchmark is Typora:** live markdown rendering right inside the
+  text as you type — no split preview, no source mode, minimalism, nothing but
+  the text. esse takes that feeling and adds the conveyor and the
+  Writing/Editing modes on top.
+- **The chosen stack is a native Rust GUI, desktop.** Candidate frameworks:
+  - **gpui** (the Zed engine) — built for exactly this: a text editor, GPU
+    rendering, the best text handling in Rust; the downside is that it is
+    young, thinly documented and its API is unstable.
+  - **iced** — more mature, Elm architecture, fits a three-screen app well;
+    advanced text handling would have to be written as a custom widget.
+  - **egui** — the fastest start (immediate mode), but weaker typography — fine
+    for a prototype, unlikely to carry the final "Typora feeling".
+  - Live markdown rendering is written by hand either way (parser:
+    **pulldown-cmark** or **comrak**). This is the most expensive part of the
+    project — so it is where to start.
+
+---
+
+## Anti-features
+
+Deliberately NOT built — and why:
+
+| What is missing | Why |
 |---|---|
-| ИИ (генерация, подсказки, правки) | Привычка формируется только собственным письмом; ИИ-текст обесценивает практику |
-| Панель форматирования, стили, шрифты | Возня с оформлением — любимая прокрастинация; markdown-lite достаточно |
-| Папки, теги, вложенность | При одном эссе в работе и плоской копилке искр организовывать нечего |
-| Соцфункции, комментарии, шаринг внутри | Публикация происходит снаружи, в настоящем блоге; внутренняя соцсеть — ловушка |
-| Статистика слов/дней/графики | Единственные метрики — сессии и опубликованное; остальное — тщеславие |
-| Настройки и кастомизация на старте | Каждая настройка — способ не писать |
+| AI (generation, suggestions, rewriting) | The habit forms only through your own writing; AI text devalues the practice |
+| Formatting toolbars, styles, fonts | Fiddling with appearance is the favourite procrastination; markdown-lite is enough |
+| Folders, tags, nesting | With one essay in progress and a flat spark box there is nothing to organise |
+| Social features, comments, in-app sharing | Publishing happens outside, in a real blog; an in-app social network is a trap |
+| Word/day statistics, graphs | The only metrics are sessions and what got published; the rest is vanity |
+| Settings and customization at launch | Every setting is a way not to write |
 
 ---
 
-## Путь развития: инструмент → продукт
+## The path: tool → product
 
-Версия «для себя» проверяет главное: работает ли конвейер и приживается ли привычка.
-Если да и захочется сделать продукт для других, добавится:
+The "for myself" version tests the main thing: does the conveyor work, and does
+the habit take. If it does and building a product for others becomes
+attractive, this gets added:
 
-1. **Онбординг** — «первая неделя» выше, оформленная как встроенный путь.
-2. **Аккаунты и синхронизация** между устройствами (в личной версии хватит локальных данных).
-3. **Интеграции публикации** — в один клик в Ghost, Telegraph, Substack вместо копипаста.
-4. **Мобильный компаньон для искр** — полноценное письмо остаётся на большом экране,
-   телефон нужен только копилке.
+1. **Onboarding** — the "first week" above, shaped into a built-in path.
+2. **Accounts and sync** across devices (local data is enough for the personal
+   version).
+3. **Publishing integrations** — one click into Ghost, Telegraph or Substack
+   instead of copy-paste.
+4. **A mobile companion for sparks** — real writing stays on the big screen,
+   the phone is only for the box.
 
-Что НЕ добавится даже в продукте: ИИ и внутренняя соцсеть — это позиционирование,
-а не временное ограничение.
+What will NOT be added even in a product: AI and an in-app social network —
+those are positioning, not a temporary limitation.
 
 ---
 
-## Открытые вопросы
+## Open questions
 
-Пересмотрены на этапе 6, когда конвейер уже работал и им пользовались.
-Вопросы закрыты; там, где решение осталось прежним, записано и то, чем его
-менять, если оно перестанет годиться. Ревизия ничего не меняет в поведении —
-любое изменение механики идёт отдельным OpenSpec-изменением.
+Revisited at stage 6, when the conveyor was already working and in daily use.
+The questions are closed; where the decision stayed the same, what would change
+it is written down too. The revision changes no behaviour — any change of
+mechanics goes through its own OpenSpec change.
 
-- **GUI-фреймворк — закрыт.** Выбран **gpui**: прототип этапа 0 взял все
-  критерии с первого раза, поэтому прототип на iced не строился. Основания —
-  в Decision Record `openspec/changes/editor-framework-prototype/design.md`.
-- **Экспорт — закрыт, нужны оба.** В конверте завершения есть и «Скопировать
-  как markdown», и «Сохранить в файл…». Оба оказались дешёвыми, так что
-  выбирать между ними не пришлось.
-- **Жёсткость WIP-лимита — остаётся жёсткой.** Одно эссе в работе, второго
-  слота нет. Если запрет начнёт мешать, ослабляем его не свободным вторым
-  слотом, а **слотом с трением**: чтобы начать новое, текущее нужно явным
-  действием отложить «в стол». Это набросок будущего изменения, а не решение.
-- **Правка назад в «Пишу» — остаётся только неудобством.** Механического
-  запрета курсору не будет: приглушённый текст выше текущей строки делает своё
-  дело, а жёсткий запрет ломал бы мелочи, ради которых наверх и возвращаются, —
-  опечатку в предыдущем слове, оборванную фразу.
-- **Скорость запуска — измерена, вопрос снят.** До готовности печатать:
-  ~0,5–0,8 с на холодном старте и ~0,15 с на тёплом (замер
-  `ESSE_STARTUP_TIMING=1`, релизная сборка). Внутри приложения — около 0,15 с,
-  остальное берёт себе macOS. Обещание «искра меньше чем за пять секунд»
-  выдерживается вместе с открытием приложения, так что отдельное быстрое
-  окно-компаньон для искр не нужно.
+- **GUI framework — closed.** **gpui** was chosen: the stage 0 prototype met
+  every criterion on the first attempt, so the iced prototype was never built.
+  The reasoning is in the Decision Record
+  `openspec/changes/editor-framework-prototype/design.md`.
+- **Export — closed, both are needed.** The completion panel has both "Copy as
+  markdown" and "Save to a file…". Both turned out cheap, so there was nothing
+  to choose between.
+- **How hard the WIP limit is — it stays hard.** One essay in progress, no
+  second slot. If the ban starts to get in the way, it is loosened not with a
+  free second slot but with a **slot with friction**: to start a new essay the
+  current one has to be shelved by an explicit action. That is a sketch of a
+  future change, not a decision.
+- **Editing backwards in Writing mode — stays merely awkward.** There will be
+  no mechanical ban on the cursor: dimming the text above the current line does
+  the job, and a hard ban would break the small things people go back for — a
+  typo in the previous word, a sentence left hanging.
+- **Launch speed — measured, question closed.** Time to being ready to type:
+  ~0.5–0.8 s cold and ~0.15 s warm (measured with `ESSE_STARTUP_TIMING=1`, a
+  release build). About 0.15 s of that is the app itself; macOS takes the rest.
+  The promise of "a spark in under five seconds" holds even including opening
+  the app, so a separate fast companion window for sparks is not needed.
