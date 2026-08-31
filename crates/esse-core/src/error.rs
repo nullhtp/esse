@@ -38,6 +38,11 @@ pub enum Error {
     #[error("essay '{slug}' does not exist")]
     EssayNotFound { slug: String },
 
+    /// The spark was gone by the time the essay was started — two windows, or
+    /// a hand-edited `sparks.jsonl`.
+    #[error("that spark is no longer in the box")]
+    SparkNotFound { id: String },
+
     #[error("essay '{slug}' already exists")]
     SlugTaken { slug: String },
 

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::error::Result;
 use crate::model::Spark;
-use crate::store::{append_line, read_jsonl, DataDir};
+use crate::store::{append_line, read_jsonl, write_atomic, DataDir};
 
 pub struct SparkStore {
     path: PathBuf,
@@ -31,6 +31,29 @@ impl SparkStore {
     /// Appends one line; previously stored lines are untouched.
     pub fn append(&self, spark: &Spark) -> Result<()> {
         append_line(&self.path, &serde_json::to_string(spark)?)
+    }
+
+    /// Takes a spark out of the box, by id.
+    ///
+    /// The file is the whole list, so removing one line means rewriting it —
+    /// atomically, through the same write-temp-then-rename the essays use, so
+    /// an interrupted removal leaves the box as it was rather than truncated.
+    /// Removing a spark that is not there is not an error: the box already
+    /// looks the way the caller wanted.
+    pub fn remove(&self, id: &str) -> Result<bool> {
+        let sparks = read_jsonl::<Spark>(&self.path)?;
+        let kept: Vec<&Spark> = sparks.iter().filter(|spark| spark.id != id).collect();
+        if kept.len() == sparks.len() {
+            return Ok(false);
+        }
+
+        let mut contents = String::new();
+        for spark in kept {
+            contents.push_str(&serde_json::to_string(spark)?);
+            contents.push('\n');
+        }
+        write_atomic(&self.path, &contents)?;
+        Ok(true)
     }
 
     /// Every spark, newest first.

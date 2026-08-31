@@ -4,7 +4,10 @@
 use std::fs;
 
 use esse_core::model::now;
-use esse_core::{DataDir, Error, EssayStatus, EssayStore, Session, SessionStore, SparkStore};
+use esse_core::{
+    start_essay_from_spark, DataDir, Error, EssayStatus, EssayStore, Session, SessionStore,
+    SparkStore,
+};
 use tempfile::TempDir;
 
 /// A data directory that does not exist yet, so every test also exercises
@@ -91,6 +94,79 @@ fn sparks_survive_reopening_the_directory() {
 
     assert_eq!(sparks.len(), 1);
     assert_eq!(sparks[0].text, "пережить перезапуск");
+}
+
+#[test]
+fn removing_a_spark_leaves_the_others_untouched() {
+    let (_temp, dir) = data_dir();
+    let store = SparkStore::new(&dir);
+
+    for text in ["первая", "вторая", "третья"] {
+        store.capture(text).unwrap().unwrap();
+    }
+    let middle = store
+        .load_all()
+        .unwrap()
+        .into_iter()
+        .find(|spark| spark.text == "вторая")
+        .unwrap();
+
+    assert!(store.remove(&middle.id).unwrap());
+
+    let texts: Vec<_> = store
+        .load_all()
+        .unwrap()
+        .into_iter()
+        .map(|spark| spark.text)
+        .collect();
+    assert_eq!(texts, ["третья", "первая"]);
+    // The rewrite is a whole-file replacement: no temp file survives it.
+    let names: Vec<_> = fs::read_dir(dir.root())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".tmp"))
+        .collect();
+    assert!(names.is_empty(), "{names:?}");
+}
+
+#[test]
+fn removing_a_spark_that_is_not_there_changes_nothing() {
+    let (_temp, dir) = data_dir();
+    let store = SparkStore::new(&dir);
+    store.capture("единственная").unwrap().unwrap();
+    let before = lines(&dir.sparks_path());
+
+    assert!(!store.remove("no-such-id").unwrap());
+
+    assert_eq!(lines(&dir.sparks_path()), before);
+    assert_eq!(store.load_all().unwrap().len(), 1);
+}
+
+#[test]
+fn a_removed_spark_stays_gone_after_reopening() {
+    let (_temp, dir) = data_dir();
+    let store = SparkStore::new(&dir);
+    let gone = store.capture("исчезнет").unwrap().unwrap();
+    store.capture("останется").unwrap().unwrap();
+
+    store.remove(&gone.id).unwrap();
+
+    let reopened = DataDir::at(dir.root()).unwrap();
+    let sparks = SparkStore::new(&reopened).load_all().unwrap();
+    assert_eq!(sparks.len(), 1);
+    assert_eq!(sparks[0].text, "останется");
+}
+
+#[test]
+fn removing_the_last_spark_leaves_an_empty_box() {
+    let (_temp, dir) = data_dir();
+    let store = SparkStore::new(&dir);
+    let only = store.capture("единственная").unwrap().unwrap();
+
+    assert!(store.remove(&only.id).unwrap());
+
+    assert!(store.load_all().unwrap().is_empty());
+    assert_eq!(fs::read_to_string(dir.sparks_path()).unwrap(), "");
 }
 
 // -- essays --------------------------------------------------------------
@@ -247,6 +323,99 @@ fn a_broken_essay_file_is_reported_with_its_path() {
     let error = store.load("broken").unwrap_err();
     assert!(matches!(error, Error::Format { .. }), "{error}");
     assert!(error.to_string().contains("broken.md"), "{error}");
+}
+
+// -- starting an essay from a spark ---------------------------------------
+
+#[test]
+fn a_spark_becomes_a_draft_and_leaves_the_box() {
+    let (_temp, dir) = data_dir();
+    let sparks = SparkStore::new(&dir);
+    let essays = EssayStore::new(&dir);
+    sparks.capture("другая мысль").unwrap().unwrap();
+    let spark = sparks.capture("почему эссе").unwrap().unwrap();
+
+    let essay = start_essay_from_spark(&sparks, &essays, &spark.id).unwrap();
+
+    assert_eq!(essay.slug, "pochemu-esse");
+    assert_eq!(essay.status(), EssayStatus::Draft);
+    assert_eq!(essay.spark.as_deref(), Some("почему эссе"));
+    assert!(essays.path("pochemu-esse").exists());
+
+    let left: Vec<_> = sparks
+        .load_all()
+        .unwrap()
+        .into_iter()
+        .map(|spark| spark.text)
+        .collect();
+    assert_eq!(left, ["другая мысль"]);
+}
+
+#[test]
+fn a_taken_slug_gets_the_first_free_suffix() {
+    let (_temp, dir) = data_dir();
+    let sparks = SparkStore::new(&dir);
+    let essays = EssayStore::new(&dir);
+    // Two finished essays already own the obvious names.
+    for slug in ["pochemu-esse", "pochemu-esse-2"] {
+        let mut essay = essays.create(slug, None).unwrap();
+        essay.transition_to(EssayStatus::Published).unwrap();
+        essays.save(&essay).unwrap();
+    }
+    let spark = sparks.capture("Почему эссе!").unwrap().unwrap();
+
+    let essay = start_essay_from_spark(&sparks, &essays, &spark.id).unwrap();
+
+    assert_eq!(essay.slug, "pochemu-esse-3");
+    assert!(sparks.load_all().unwrap().is_empty());
+}
+
+#[test]
+fn the_wip_refusal_passes_through_and_keeps_the_spark() {
+    let (_temp, dir) = data_dir();
+    let sparks = SparkStore::new(&dir);
+    let essays = EssayStore::new(&dir);
+    essays.create("uzhe-pishetsya", None).unwrap();
+    let spark = sparks.capture("новая мысль").unwrap().unwrap();
+
+    let error = start_essay_from_spark(&sparks, &essays, &spark.id).unwrap_err();
+
+    match error {
+        Error::EssayInProgress { slug, status } => {
+            assert_eq!(slug, "uzhe-pishetsya");
+            assert_eq!(status, EssayStatus::Draft);
+        }
+        other => panic!("expected the in-progress essay to be named: {other}"),
+    }
+    // Creation failed, so the spark is still where it was.
+    assert_eq!(sparks.load_all().unwrap(), [spark]);
+    assert_eq!(essays.load_all().unwrap().len(), 1);
+}
+
+#[test]
+fn a_spark_that_is_not_in_the_box_starts_nothing() {
+    let (_temp, dir) = data_dir();
+    let sparks = SparkStore::new(&dir);
+    let essays = EssayStore::new(&dir);
+
+    let error = start_essay_from_spark(&sparks, &essays, "no-such-id").unwrap_err();
+
+    assert!(matches!(error, Error::SparkNotFound { .. }), "{error}");
+    assert!(essays.load_all().unwrap().is_empty());
+}
+
+#[test]
+fn a_spark_with_no_spellable_letters_still_starts_an_essay() {
+    let (_temp, dir) = data_dir();
+    let sparks = SparkStore::new(&dir);
+    let essays = EssayStore::new(&dir);
+    let spark = sparks.capture("🔥🔥🔥").unwrap().unwrap();
+
+    let essay = start_essay_from_spark(&sparks, &essays, &spark.id).unwrap();
+
+    assert!(essay.slug.starts_with("essay-"), "{}", essay.slug);
+    assert_eq!(essay.spark.as_deref(), Some("🔥🔥🔥"));
+    assert!(sparks.load_all().unwrap().is_empty());
 }
 
 // -- sessions ------------------------------------------------------------
