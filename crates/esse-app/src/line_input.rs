@@ -1,9 +1,12 @@
-//! The capture line.
+//! The app's one plain line of text: the capture line on Today, and the
+//! publication link in the completion overlay.
 //!
 //! A hand-built single-line field, not a small editor: text, a caret, IME
-//! composition and Enter, and deliberately nothing else. Selection, clipboard
-//! and undo belong to the real editor; a box you type one line into does not
-//! need them, and every one of them added here would have to be written twice.
+//! composition, paste and Enter, and deliberately nothing else. Selection and
+//! undo belong to the real editor; a box you type one line into does not need
+//! them, and each of them added here would have to be written twice. Paste is
+//! the exception — a publication link arrives from the clipboard far more often
+//! than it is typed out.
 
 use std::ops::Range;
 
@@ -17,11 +20,9 @@ use gpui::{
 use crate::theme;
 
 actions!(
-    spark_input,
-    [Backspace, Delete, Left, Right, Home, End, Submit]
+    line_input,
+    [Backspace, Delete, Left, Right, Home, End, Paste, Submit]
 );
-
-const PLACEHOLDER: &str = "Новая искра";
 
 /// The line was submitted. The text travels with the event: the field is
 /// cleared by whoever saved it, and only once the spark is on disk.
@@ -99,8 +100,8 @@ impl Line {
             .map(|ch| self.cursor + ch.len_utf8())
     }
 
-    /// Replaces a byte range with new text and leaves the caret after it. A
-    /// spark is one line, so anything the platform hands over is flattened.
+    /// Replaces a byte range with new text and leaves the caret after it. This
+    /// is one line, so anything the platform hands over is flattened.
     fn splice(&mut self, range: Range<usize>, new_text: &str) {
         let flattened = if new_text.contains(['\n', '\r']) {
             new_text.replace(['\n', '\r'], " ")
@@ -151,8 +152,10 @@ impl Line {
     }
 }
 
-pub struct SparkInput {
+pub struct LineInput {
     focus_handle: FocusHandle,
+    /// What the empty field says it is for.
+    placeholder: SharedString,
     line: Line,
     /// What the IME is composing, in bytes.
     marked_range: Option<Range<usize>>,
@@ -161,17 +164,25 @@ pub struct SparkInput {
     last_line: Option<ShapedLine>,
 }
 
-impl EventEmitter<Submitted> for SparkInput {}
+impl EventEmitter<Submitted> for LineInput {}
 
-impl SparkInput {
-    pub fn new(cx: &mut Context<Self>) -> Self {
-        SparkInput {
+impl LineInput {
+    pub fn new(placeholder: impl Into<SharedString>, cx: &mut Context<Self>) -> Self {
+        LineInput {
             focus_handle: cx.focus_handle(),
+            placeholder: placeholder.into(),
             line: Line::default(),
             marked_range: None,
             last_bounds: None,
             last_line: None,
         }
+    }
+
+    /// The line as it stands, for a caller that reads it on its own terms
+    /// rather than on Enter — the publication link, read when Publish is
+    /// confirmed.
+    pub fn text(&self) -> &str {
+        &self.line.text
     }
 
     pub fn clear(&mut self, cx: &mut Context<Self>) {
@@ -223,16 +234,32 @@ impl SparkInput {
         self.line.cursor = self.line.text.len();
         cx.notify();
     }
+
+    /// Whatever the clipboard carries arrives as one line: a link pasted from
+    /// a browser brings a trailing newline often enough to matter.
+    fn paste(&mut self, _: &Paste, _: &mut Window, cx: &mut Context<Self>) {
+        if self.marked_range.is_some() {
+            return;
+        }
+        let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) else {
+            return;
+        };
+        if text.is_empty() {
+            return;
+        }
+        self.line.splice(self.line.cursor..self.line.cursor, &text);
+        cx.notify();
+    }
 }
 
-impl Focusable for SparkInput {
+impl Focusable for LineInput {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }
 
 /// Typed text and IME composition both arrive through this trait.
-impl EntityInputHandler for SparkInput {
+impl EntityInputHandler for LineInput {
     fn text_for_range(
         &mut self,
         range_utf16: Range<usize>,
@@ -303,7 +330,7 @@ impl EntityInputHandler for SparkInput {
 
         let start = range.start;
         self.line.splice(range, new_text);
-        self.marked_range = (!new_text.is_empty()).then(|| start..self.line.cursor);
+        self.marked_range = (!new_text.is_empty()).then_some(start..self.line.cursor);
 
         // The IME reports where the caret sits inside the text it is composing.
         if let Some(selected) = new_selected_range_utf16 {
@@ -347,10 +374,10 @@ impl EntityInputHandler for SparkInput {
     }
 }
 
-impl Render for SparkInput {
+impl Render for LineInput {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
-            .key_context("SparkInput")
+            .key_context("LineInput")
             .track_focus(&self.focus_handle(cx))
             .cursor(CursorStyle::IBeam)
             .w_full()
@@ -364,9 +391,8 @@ impl Render for SparkInput {
             .on_action(cx.listener(Self::right))
             .on_action(cx.listener(Self::home))
             .on_action(cx.listener(Self::end))
-            .child(SparkInputElement {
-                input: cx.entity(),
-            })
+            .on_action(cx.listener(Self::paste))
+            .child(LineInputElement { input: cx.entity() })
     }
 }
 
@@ -375,11 +401,11 @@ impl Render for SparkInput {
 // The line is painted by hand rather than with a text element: the caret and
 // the IME underline need the shaped line's own geometry.
 
-struct SparkInputElement {
-    input: Entity<SparkInput>,
+struct LineInputElement {
+    input: Entity<LineInput>,
 }
 
-impl IntoElement for SparkInputElement {
+impl IntoElement for LineInputElement {
     type Element = Self;
 
     fn into_element(self) -> Self::Element {
@@ -394,7 +420,7 @@ struct PrepaintState {
     placeholder: bool,
 }
 
-impl Element for SparkInputElement {
+impl Element for LineInputElement {
     type RequestLayoutState = ();
     type PrepaintState = PrepaintState;
 
@@ -434,7 +460,7 @@ impl Element for SparkInputElement {
         let placeholder = input.line.text.is_empty();
 
         let text: SharedString = if placeholder {
-            PLACEHOLDER.into()
+            input.placeholder.clone()
         } else {
             input.line.text.clone().into()
         };
@@ -515,7 +541,7 @@ impl Element for SparkInputElement {
             window,
             cx,
         ) {
-            log::error!("could not paint the spark input: {error:?}");
+            log::error!("could not paint the line: {error:?}");
         }
         if focus_handle.is_focused(window) {
             window.paint_quad(prepaint.caret.clone());

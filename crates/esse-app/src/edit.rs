@@ -8,18 +8,25 @@
 //!
 //! No session runs here. Sessions are a Write-mode idea, and time spent editing
 //! is not time spent drafting (edit-mode spec).
+//!
+//! This is also the only room an essay can end in. The finish control opens the
+//! completion overlay, because deciding an essay is done is a judgement about
+//! the whole text — you make it looking at the text, not at a card on a screen
+//! somewhere else (design.md, D1).
 
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use esse_core::{Essay, Result};
 use gpui::{
-    actions, div, prelude::*, px, rgb, App, Context, Entity, EventEmitter, FocusHandle, Focusable,
-    Subscription, Window,
+    actions, div, prelude::*, px, rgb, rgba, App, ClipboardItem, Context, Entity, EventEmitter,
+    FocusHandle, Focusable, SharedString, Subscription, Window,
 };
 
 use crate::autosave::Autosave;
 use crate::data::Data;
 use crate::editor::{Edited, EditorStyle, EditorView, Viewport};
+use crate::line_input::LineInput;
 use crate::theme;
 
 actions!(edit, [Leave, Switch]);
@@ -31,11 +38,37 @@ pub enum EditEvent {
     /// Across to Write mode. The Editing → Draft transition is the router's,
     /// because it can fail and a failed switch stays put.
     Switch,
+    /// End the essay: published, with the link the writer gave if there was
+    /// one. Saving and the transition are the router's, for the same reason.
+    Publish(Option<String>),
+    /// End it the other way. The confirmation has already been given.
+    Shelve,
+}
+
+/// How far the completion flow has got. Absent — no overlay at all, which is
+/// what Edit mode looks like nearly all the time.
+enum Finish {
+    /// The two outcomes, offered.
+    Choosing,
+    /// Publishing: copy, export, the optional link, and the confirming action.
+    Publishing,
+    /// Shelving, waiting for the one explicit confirmation (design.md, D2).
+    Shelving,
 }
 
 pub struct EditView {
     autosave: Autosave,
     editor: Entity<EditorView>,
+    /// Where the completion flow is, if it has been opened at all.
+    finishing: Option<Finish>,
+    /// Focus belongs to the overlay while it is open, so a keystroke meant for
+    /// a decision cannot land in the text behind it.
+    overlay_focus: FocusHandle,
+    /// Where the essay went, when the writer has the link to hand.
+    link: Entity<LineInput>,
+    /// Something the overlay has to say for itself — copied, exported. Trouble
+    /// goes to the same quiet corner as everything else.
+    note: Option<SharedString>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -62,6 +95,10 @@ impl EditView {
         EditView {
             autosave: Autosave::new(data, editor.clone(), essay),
             editor,
+            finishing: None,
+            overlay_focus: cx.focus_handle(),
+            link: cx.new(|cx| LineInput::new("Ссылка на публикацию — если уже есть", cx)),
+            note: None,
             _subscriptions: subscriptions,
         }
     }
@@ -71,8 +108,8 @@ impl EditView {
         self.autosave.essay()
     }
 
-    /// Write the text out now. The router calls this before a switch, so the
-    /// words are safe before the state moves (design.md, D4).
+    /// Write the text out now. The router calls this before a switch or an
+    /// ending, so the words are safe before the state moves (design.md, D4).
     pub fn save(&mut self, cx: &mut Context<Self>) -> Result<()> {
         self.autosave.flush(cx)
     }
@@ -83,8 +120,8 @@ impl EditView {
         let _ = self.save(cx);
     }
 
-    /// A switch the router could not carry out, said in the same quiet corner
-    /// as save trouble (edit-mode spec).
+    /// A switch or an ending the router could not carry out, said in the same
+    /// quiet corner as save trouble (edit-mode spec).
     pub fn complain(&mut self, trouble: impl Into<String>, cx: &mut Context<Self>) {
         self.autosave.complain(trouble, cx);
     }
@@ -93,9 +130,15 @@ impl EditView {
         self.autosave.edited(cx, |this| &mut this.autosave);
     }
 
-    fn leave(&mut self, _: &Leave, _: &mut Window, cx: &mut Context<Self>) {
+    fn leave(&mut self, _: &Leave, window: &mut Window, cx: &mut Context<Self>) {
         // Mid-composition, Escape belongs to the IME.
         if self.editor.read(cx).is_composing() {
+            return;
+        }
+        // With the overlay open, Escape closes it and changes nothing else:
+        // the way out of a decision is not the way out of the room.
+        if self.finishing.is_some() {
+            self.close(window, cx);
             return;
         }
         self.finish(cx);
@@ -105,6 +148,244 @@ impl EditView {
     fn switch(&mut self, _: &Switch, _: &mut Window, cx: &mut Context<Self>) {
         cx.emit(EditEvent::Switch);
     }
+
+    // -- the completion flow ---------------------------------------------
+
+    /// Move the overlay to a stage, taking focus off the text while it is up.
+    fn show(&mut self, stage: Finish, window: &mut Window, cx: &mut Context<Self>) {
+        let focus = match stage {
+            // The publish panel is where something gets typed, and the link is
+            // the only thing to type.
+            Finish::Publishing => self.link.read(cx).focus_handle(cx),
+            _ => self.overlay_focus.clone(),
+        };
+        self.finishing = Some(stage);
+        self.note = None;
+        window.focus(&focus, cx);
+        cx.notify();
+    }
+
+    /// Dismiss the overlay. Nothing is saved, nothing is moved, nothing is
+    /// undone — the essay is in Editing exactly as it was (essay-completion
+    /// spec).
+    fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.finishing = None;
+        self.note = None;
+        window.focus(&self.editor.read(cx).focus_handle(cx), cx);
+        cx.notify();
+    }
+
+    /// The body, on the clipboard, ready to be pasted into a blog.
+    ///
+    /// The text is written out first: what gets handed over is the essay as it
+    /// stands on disk, so a copy can never quietly be a copy of something else.
+    /// A disk that refuses says so in the corner, and nothing is copied.
+    fn copy(&mut self, cx: &mut Context<Self>) {
+        if self.save(cx).is_err() {
+            return;
+        }
+        cx.write_to_clipboard(ClipboardItem::new_string(self.essay().body_markdown()));
+        self.note = Some("Скопировано".into());
+        cx.notify();
+    }
+
+    /// The body, in a file of the writer's choosing — `<slug>.md`, offered in
+    /// the native save dialog. Dismissing the dialog writes nothing.
+    fn export(&mut self, cx: &mut Context<Self>) {
+        if self.save(cx).is_err() {
+            return;
+        }
+        let markdown = self.essay().body_markdown();
+        let name = format!("{}.md", self.essay().slug);
+        let directory = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+
+        let chosen = cx.prompt_for_new_path(&directory, Some(&name));
+        cx.spawn(async move |this, cx| {
+            let told = match chosen.await {
+                Ok(Ok(Some(path))) => match std::fs::write(&path, &markdown) {
+                    Ok(()) => Ok(format!("Сохранено: {}", path.display())),
+                    Err(error) => Err(format!("Не сохранилось в файл: {error}")),
+                },
+                // The dialog was dismissed: no file, and the panel stays open.
+                Ok(Ok(None)) => return,
+                Ok(Err(error)) => Err(format!("Не открылось окно сохранения: {error}")),
+                // The dialog went away with the window; there is nobody to tell.
+                Err(_) => return,
+            };
+            this.update(cx, |this, cx| match told {
+                Ok(note) => {
+                    this.note = Some(note.into());
+                    cx.notify();
+                }
+                Err(trouble) => {
+                    log::error!("{trouble}");
+                    this.complain(trouble, cx);
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    /// Confirmed: publish, with the link if one was typed. The rest is the
+    /// router's — saving, the transition, and the way back to Today.
+    fn publish(&mut self, cx: &mut Context<Self>) {
+        let link = self.link.read(cx).text().trim().to_string();
+        cx.emit(EditEvent::Publish((!link.is_empty()).then_some(link)));
+    }
+
+    // -- the overlay ------------------------------------------------------
+
+    /// The panel, on its sheet of paper, over the text it is about.
+    fn overlay(&self, panel: gpui::AnyElement) -> impl IntoElement {
+        div()
+            .id("finishing")
+            .track_focus(&self.overlay_focus)
+            // The decision is in front of the text: a click on the veil is not
+            // a click into the essay behind it.
+            .occlude()
+            .absolute()
+            .inset_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(rgba(theme::edit::VEIL))
+            .child(
+                div()
+                    .w(px(420.))
+                    .max_w_full()
+                    .p(px(26.))
+                    .rounded(px(10.))
+                    .bg(rgb(theme::edit::PANEL))
+                    .border_1()
+                    .border_color(rgb(theme::edit::PANEL_BORDER))
+                    .text_color(rgb(theme::edit::INK))
+                    .child(panel)
+                    .children(self.note.clone().map(|note| {
+                        div()
+                            .pt(px(14.))
+                            .text_size(px(theme::SMALL_SIZE))
+                            .text_color(rgb(theme::MUTED))
+                            .child(note)
+                    })),
+            )
+    }
+
+    fn choosing(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(10.))
+            .child(title("Эссе закончено?"))
+            .child(action("publish", "Опубликовать", true).on_click(
+                cx.listener(|this, _, window, cx| this.show(Finish::Publishing, window, cx)),
+            ))
+            .child(action("shelve", "В стол", false).on_click(
+                cx.listener(|this, _, window, cx| this.show(Finish::Shelving, window, cx)),
+            ))
+            .child(
+                cancel("not-yet", "Ещё нет")
+                    .on_click(cx.listener(|this, _, window, cx| this.close(window, cx))),
+            )
+    }
+
+    /// Copy and export come before the confirming action, because that is the
+    /// order the evening actually goes in: copy the text out, post it, paste
+    /// the link back, and only then say it is published (design.md, D2).
+    fn publishing(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(10.))
+            .child(title("Опубликовать"))
+            .child(
+                action("copy", "Скопировать как markdown", false)
+                    .on_click(cx.listener(|this, _, _, cx| this.copy(cx))),
+            )
+            .child(
+                action("export", "Сохранить в файл…", false)
+                    .on_click(cx.listener(|this, _, _, cx| this.export(cx))),
+            )
+            .child(div().pt(px(6.)).child(self.link.clone()))
+            .child(
+                action("published", "Опубликовано", true)
+                    .on_click(cx.listener(|this, _, _, cx| this.publish(cx))),
+            )
+            .child(cancel("back", "Назад").on_click(
+                cx.listener(|this, _, window, cx| this.show(Finish::Choosing, window, cx)),
+            ))
+    }
+
+    /// The one explicit step in front of shelving. Nothing comes back out of
+    /// the drawer, so the writer is told so before the door shuts.
+    fn shelving(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(10.))
+            .child(title("Убрать в стол?"))
+            .child(
+                div()
+                    .pb(px(4.))
+                    .text_size(px(theme::SMALL_SIZE))
+                    .text_color(rgb(theme::MUTED))
+                    .child("Эссе останется на полке, но вернуть его в работу будет нельзя."),
+            )
+            .child(
+                action("shelve-confirm", "Да, в стол", true)
+                    .on_click(cx.listener(|_, _, _, cx| cx.emit(EditEvent::Shelve))),
+            )
+            .child(cancel("shelve-decline", "Нет").on_click(
+                cx.listener(|this, _, window, cx| this.show(Finish::Choosing, window, cx)),
+            ))
+    }
+}
+
+fn title(text: &'static str) -> impl IntoElement {
+    div()
+        .pb(px(6.))
+        .text_size(px(theme::SMALL_SIZE))
+        .text_color(rgb(theme::MUTED))
+        .child(text)
+}
+
+/// A thing the panel does. The confirming action carries the ink; everything
+/// else is a quiet face on paper.
+fn action(id: &'static str, label: &'static str, confirming: bool) -> gpui::Stateful<gpui::Div> {
+    let button = div()
+        .id(id)
+        .flex()
+        .items_center()
+        .justify_center()
+        .w_full()
+        .py(px(11.))
+        .rounded(px(7.))
+        .text_size(px(theme::BODY_SIZE))
+        .cursor_pointer()
+        .child(label);
+
+    if confirming {
+        button
+            .bg(rgb(theme::INK))
+            .text_color(rgb(theme::BACKGROUND))
+            .hover(|style| style.bg(rgb(theme::INK_HOVER)))
+    } else {
+        button
+            .bg(rgb(theme::edit::ACTION))
+            .hover(|style| style.bg(rgb(theme::edit::ACTION_HOVER)))
+    }
+}
+
+/// The way back out of a stage: a line of text, not a third button.
+fn cancel(id: &'static str, label: &'static str) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .pt(px(4.))
+        .text_size(px(theme::SMALL_SIZE))
+        .text_color(rgb(theme::MUTED))
+        .cursor_pointer()
+        .hover(|style| style.text_color(rgb(theme::edit::INK)))
+        .child(label)
 }
 
 impl Focusable for EditView {
@@ -116,6 +397,13 @@ impl Focusable for EditView {
 
 impl Render for EditView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let overlay = match self.finishing.as_ref() {
+            Some(Finish::Choosing) => Some(self.overlay(self.choosing(cx).into_any_element())),
+            Some(Finish::Publishing) => Some(self.overlay(self.publishing(cx).into_any_element())),
+            Some(Finish::Shelving) => Some(self.overlay(self.shelving(cx).into_any_element())),
+            None => None,
+        };
+
         div()
             .key_context("Edit")
             .relative()
@@ -125,18 +413,35 @@ impl Render for EditView {
             .on_action(cx.listener(Self::switch))
             .child(self.editor.clone())
             .child(
-                // The way back, named for the room it leads to (design.md, D3).
+                // The two ways on, in the same quiet corner: across to the
+                // other room, or out of the pipeline altogether (design.md,
+                // D3, D2).
                 div()
-                    .id("switch")
                     .absolute()
                     .top(px(18.))
                     .right(px(22.))
+                    .flex()
+                    .gap(px(20.))
                     .text_size(px(theme::SMALL_SIZE))
                     .text_color(rgb(theme::edit::SWITCH))
-                    .cursor_pointer()
-                    .hover(|style| style.text_color(rgb(theme::edit::SWITCH_HOVER)))
-                    .on_click(cx.listener(|_, _, _, cx| cx.emit(EditEvent::Switch)))
-                    .child("Пишу"),
+                    .child(
+                        div()
+                            .id("finish")
+                            .cursor_pointer()
+                            .hover(|style| style.text_color(rgb(theme::edit::SWITCH_HOVER)))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.show(Finish::Choosing, window, cx)
+                            }))
+                            .child("Закончить"),
+                    )
+                    .child(
+                        div()
+                            .id("switch")
+                            .cursor_pointer()
+                            .hover(|style| style.text_color(rgb(theme::edit::SWITCH_HOVER)))
+                            .on_click(cx.listener(|_, _, _, cx| cx.emit(EditEvent::Switch)))
+                            .child("Пишу"),
+                    ),
             )
             .children(self.autosave.trouble().map(|text| {
                 div()
@@ -147,5 +452,6 @@ impl Render for EditView {
                     .text_color(rgb(theme::ALARM))
                     .child(text.to_string())
             }))
+            .children(overlay)
     }
 }

@@ -53,9 +53,19 @@ pub mod edit {
     pub const MARKER_INK: u32 = 0x9c968a;
     pub const SELECTION: u32 = 0x2563eb2b;
     pub const CARET: u32 = 0x2563eb;
-    /// The corner control that switches back to Write mode.
+    /// The corner controls: back to Write mode, and on to finishing.
     pub const SWITCH: u32 = 0xb5aea1;
     pub const SWITCH_HOVER: u32 = 0x6d675c;
+
+    /// The completion overlay: a sheet of paper laid on the page. The veil is
+    /// thin on purpose — the text stays readable behind it, because deciding
+    /// to finish is a decision about the text (essay-completion spec).
+    pub const VEIL: u32 = 0xf4f1eacc;
+    pub const PANEL: u32 = 0xfbfaf7;
+    pub const PANEL_BORDER: u32 = 0xdfd8c9;
+    /// The quiet actions inside the panel — copying, exporting, going back.
+    pub const ACTION: u32 = 0xe9e4d9;
+    pub const ACTION_HOVER: u32 = 0xded7c8;
 }
 
 /// The editor's own measures. Bigger than the Today list: this is the text

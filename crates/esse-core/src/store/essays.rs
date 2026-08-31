@@ -5,7 +5,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
-use crate::model::Essay;
+use crate::model::{Essay, EssayStatus};
 use crate::store::{frontmatter, read_to_string, write_atomic, DataDir};
 
 pub struct EssayStore {
@@ -81,6 +81,31 @@ impl EssayStore {
             .load_all()?
             .into_iter()
             .find(|essay| essay.is_in_progress()))
+    }
+
+    /// Published essays, newest first — by `published_at`, the day the essay
+    /// ended, and not by the day its file happened to be touched last. A file
+    /// published by hand without that field falls back to `updated_at` rather
+    /// than dropping out of the pile.
+    pub fn published(&self) -> Result<Vec<Essay>> {
+        let mut essays = self.with_status(EssayStatus::Published)?;
+        essays
+            .sort_by_key(|essay| std::cmp::Reverse(essay.published_at.unwrap_or(essay.updated_at)));
+        Ok(essays)
+    }
+
+    /// Shelved essays, most recently shelved first — which is `load_all`'s
+    /// order, shelving being the last thing that happens to them.
+    pub fn shelved(&self) -> Result<Vec<Essay>> {
+        self.with_status(EssayStatus::Shelved)
+    }
+
+    fn with_status(&self, status: EssayStatus) -> Result<Vec<Essay>> {
+        Ok(self
+            .load_all()?
+            .into_iter()
+            .filter(|essay| essay.status() == status)
+            .collect())
     }
 
     /// Writes the essay atomically, keeping any front-matter fields this

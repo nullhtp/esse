@@ -16,7 +16,7 @@ use gpui::{
 };
 
 use crate::data::Data;
-use crate::spark_input::{SparkInput, Submitted};
+use crate::line_input::{LineInput, Submitted};
 use crate::theme;
 
 /// What the screen asks the router for.
@@ -25,13 +25,15 @@ pub enum TodayEvent {
     Write,
     /// A spark was chosen to start an essay from.
     Start(String),
+    /// The Shelf was asked for.
+    Shelf,
 }
 
 pub struct TodayView {
     data: Rc<Data>,
     /// Newest first, as the list shows them.
     sparks: Vec<Spark>,
-    input: Entity<SparkInput>,
+    input: Entity<LineInput>,
     /// The list is waiting for a spark to be chosen.
     picking: bool,
     /// What the router had to say — an empty spark box, a refused start.
@@ -46,7 +48,7 @@ impl EventEmitter<TodayEvent> for TodayView {}
 
 impl TodayView {
     pub fn new(data: Rc<Data>, cx: &mut Context<Self>) -> Self {
-        let input = cx.new(SparkInput::new);
+        let input = cx.new(|cx| LineInput::new("Новая искра", cx));
         let submitted = cx.subscribe(&input, Self::on_submitted);
 
         let mut view = TodayView {
@@ -100,7 +102,7 @@ impl TodayView {
         }
     }
 
-    fn on_submitted(&mut self, input: Entity<SparkInput>, event: &Submitted, cx: &mut Context<Self>) {
+    fn on_submitted(&mut self, input: Entity<LineInput>, event: &Submitted, cx: &mut Context<Self>) {
         match self.data.sparks.capture(&event.0) {
             // Nothing but whitespace: not a spark, and the line stays as it is.
             Ok(None) => {}
@@ -137,6 +139,23 @@ impl TodayView {
             .hover(|style| style.bg(rgb(theme::INK_HOVER)))
             .on_click(cx.listener(|_, _, _, cx| cx.emit(TodayEvent::Write)))
             .child("Писать")
+    }
+
+    /// The way to the Shelf: a corner control, in the same quiet register as
+    /// the editor's. Navigation, not a second thing to do — the Write button
+    /// and the capture line keep the screen (today-screen spec).
+    fn shelf_control(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .id("shelf")
+            .absolute()
+            .top(px(18.))
+            .right(px(22.))
+            .text_size(px(theme::SMALL_SIZE))
+            .text_color(rgb(theme::MUTED))
+            .cursor_pointer()
+            .hover(|style| style.text_color(rgb(theme::INK)))
+            .on_click(cx.listener(|_, _, _, cx| cx.emit(TodayEvent::Shelf)))
+            .child("Полка")
     }
 
     fn list(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -193,15 +212,18 @@ impl Render for TodayView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let button = self.write_button(cx);
         let list = self.list(cx);
+        let shelf = self.shelf_control(cx);
 
         div()
             .key_context("Today")
+            .relative()
             .size_full()
             .flex()
             .flex_col()
             .items_center()
             .bg(rgb(theme::BACKGROUND))
             .text_color(rgb(theme::INK))
+            .child(shelf)
             .child(
                 div()
                     .flex()

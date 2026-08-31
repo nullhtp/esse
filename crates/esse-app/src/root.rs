@@ -1,18 +1,23 @@
-//! The router: three screens, and the one rule that matters.
+//! The router: four screens, and the one rule that matters.
 //!
 //! An editor mode is reachable only with an essay in hand — both editor arms of
 //! [`Screen`] carry a live view, and a view cannot be built without an essay.
 //! There is no route that opens the editor without one, which is how "the
 //! empty-document screen does not exist" is enforced by the shape of the code
 //! rather than by a disabled button (design.md, D3, D1).
+//!
+//! Today and the Shelf both offer sparks to start from, and both go through the
+//! same [`Self::start_from_spark`]: the WIP rule is asked once, of the storage
+//! layer, whichever screen the spark was clicked on.
 
 use std::rc::Rc;
 
-use esse_core::{start_essay_from_spark, Error, Essay, EssayStatus, Result};
+use esse_core::{publish, shelve, start_essay_from_spark, Error, Essay, EssayStatus, Result};
 use gpui::{div, prelude::*, App, Context, Entity, FocusHandle, Focusable, Subscription, Window};
 
 use crate::data::Data;
 use crate::edit::{EditEvent, EditView};
+use crate::shelf::{ShelfEvent, ShelfView};
 use crate::today::{TodayEvent, TodayView};
 use crate::write::{WriteEvent, WriteView};
 
@@ -20,6 +25,7 @@ use crate::write::{WriteEvent, WriteView};
 /// with the route rather than beside it.
 enum Screen {
     Today,
+    Shelf(Entity<ShelfView>),
     Write(Entity<WriteView>),
     Edit(Entity<EditView>),
 }
@@ -28,9 +34,11 @@ pub struct RootView {
     data: Rc<Data>,
     today: Entity<TodayView>,
     screen: Screen,
-    /// The window state to put back when the editor is left for Today.
+    /// The window state to put back when the editor is left for Today. The
+    /// Shelf is a plain screen and never touches it (shelf-screen spec).
     was_fullscreen: bool,
     _today: Subscription,
+    _shelf: Option<Subscription>,
     _editor: Option<Subscription>,
 }
 
@@ -50,7 +58,7 @@ impl RootView {
                 Screen::Edit(edit) => {
                     edit.clone().update(cx, |edit, cx| edit.finish(cx));
                 }
-                Screen::Today => {}
+                Screen::Today | Screen::Shelf(_) => {}
             })
             .ok();
             true
@@ -62,6 +70,7 @@ impl RootView {
             screen: Screen::Today,
             was_fullscreen: false,
             _today: subscription,
+            _shelf: None,
             _editor: None,
         }
     }
@@ -76,7 +85,54 @@ impl RootView {
         match event {
             TodayEvent::Write => self.write_pressed(window, cx),
             TodayEvent::Start(spark_id) => self.start_from_spark(spark_id, window, cx),
+            TodayEvent::Shelf => self.show_shelf(window, cx),
         }
+    }
+
+    // -- the shelf -------------------------------------------------------
+
+    /// Open the Shelf. Built fresh each time, so it reads the disk rather than
+    /// remembering it, and the window is left exactly as it is — the Shelf is
+    /// a plain screen, not a room (shelf-screen spec).
+    fn show_shelf(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let shelf = cx.new(|cx| ShelfView::new(self.data.clone(), cx));
+        self._shelf = Some(cx.subscribe_in(&shelf, window, Self::on_shelf));
+        window.focus(&shelf.read(cx).focus_handle(cx), cx);
+        self.screen = Screen::Shelf(shelf);
+        cx.notify();
+    }
+
+    fn on_shelf(
+        &mut self,
+        view: &Entity<ShelfView>,
+        event: &ShelfEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match event {
+            ShelfEvent::Left => self.leave_shelf(window, cx),
+            ShelfEvent::Start(spark_id) => self.start_from_spark(spark_id, window, cx),
+            // The card is only on screen while an essay is in progress; if it
+            // has ended since, the shelf was looking at a stale disk and is
+            // told to look again.
+            ShelfEvent::Continue => match self.data.essays.in_progress() {
+                Ok(Some(essay)) => self.open_editor(essay, window, cx),
+                Ok(None) => view.update(cx, |shelf, cx| shelf.refresh(cx)),
+                Err(error) => {
+                    log::error!("could not look for an essay in progress: {error}");
+                    let notice = format!("Эссе не читаются: {error}");
+                    view.update(cx, |shelf, cx| shelf.say(notice, cx));
+                }
+            },
+        }
+    }
+
+    fn leave_shelf(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.screen = Screen::Today;
+        self._shelf = None;
+        self.today.update(cx, |today, cx| today.refresh(cx));
+        window.focus(&self.today.read(cx).focus_handle(cx), cx);
+        cx.notify();
     }
 
     /// The Write button: continue the essay in progress, or ask for a spark to
@@ -87,19 +143,19 @@ impl RootView {
             Ok(None) => {
                 let sparks = self.data.sparks.load_all().map(|sparks| sparks.len());
                 match sparks {
-                    Ok(0) => self.tell_today(
+                    Ok(0) => self.tell(
                         "Чтобы начать, нужна искра. Запишите мысль — с неё и начнём.",
                         cx,
                     ),
                     Ok(_) => self
                         .today
                         .update(cx, |today, cx| today.offer_sparks(cx)),
-                    Err(error) => self.tell_today(format!("Искры не читаются: {error}"), cx),
+                    Err(error) => self.tell(format!("Искры не читаются: {error}"), cx),
                 }
             }
             Err(error) => {
                 log::error!("could not look for an essay in progress: {error}");
-                self.tell_today(format!("Эссе не читаются: {error}"), cx);
+                self.tell(format!("Эссе не читаются: {error}"), cx);
             }
         }
     }
@@ -111,21 +167,29 @@ impl RootView {
                 self.today.update(cx, |today, cx| today.refresh(cx));
                 self.open_editor(essay, window, cx);
             }
-            // Routing normally makes this impossible; the refusal is still
-            // shown rather than swallowed (start-from-spark spec).
-            Err(Error::EssayInProgress { slug, .. }) => self.tell_today(
-                format!("Сейчас в работе «{slug}» — его нужно закончить, прежде чем начинать новое."),
+            // Routing normally makes this impossible — neither screen offers a
+            // start while the slot is taken; the refusal is still shown rather
+            // than swallowed (start-from-spark spec).
+            Err(Error::EssayInProgress { slug, .. }) => self.tell(
+                format!(
+                    "Сейчас в работе «{slug}» — его нужно закончить, прежде чем начинать новое."
+                ),
                 cx,
             ),
             Err(error) => {
                 log::error!("could not start an essay: {error}");
-                self.tell_today(format!("Не получилось начать: {error}"), cx);
+                self.tell(format!("Не получилось начать: {error}"), cx);
             }
         }
     }
 
-    fn tell_today(&mut self, notice: impl Into<String>, cx: &mut Context<Self>) {
-        self.today.update(cx, |today, cx| today.say(notice, cx));
+    /// Something the writer has to know, said on the screen they are actually
+    /// looking at.
+    fn tell(&mut self, notice: impl Into<String>, cx: &mut Context<Self>) {
+        match &self.screen {
+            Screen::Shelf(shelf) => shelf.clone().update(cx, |shelf, cx| shelf.say(notice, cx)),
+            _ => self.today.update(cx, |today, cx| today.say(notice, cx)),
+        }
     }
 
     // -- the editor ------------------------------------------------------
@@ -135,6 +199,8 @@ impl RootView {
     /// (start-from-spark spec). The window goes fullscreen and remembers what
     /// to put back (design.md, D2).
     fn open_editor(&mut self, essay: Essay, window: &mut Window, cx: &mut Context<Self>) {
+        // Whichever screen the essay was opened from, it is behind us now.
+        self._shelf = None;
         self.was_fullscreen = window.is_fullscreen();
         if !self.was_fullscreen {
             window.toggle_fullscreen();
@@ -218,6 +284,42 @@ impl RootView {
                     }
                 }
             }
+            // The two endings, in the same order as a switch: the words first,
+            // then the state. Neither frees the WIP slot by hand — the slot is
+            // free because the essay's state stopped counting (design.md, D6).
+            EditEvent::Publish(link) => {
+                let saved = view.update(cx, |edit, cx| edit.save(cx));
+                let essay = view.read(cx).essay().clone();
+                let ended = saved.and_then(|()| publish(&self.data.essays, essay, link.as_deref()));
+                self.ended(ended, "Не опубликовалось", view, window, cx);
+            }
+            EditEvent::Shelve => {
+                let saved = view.update(cx, |edit, cx| edit.save(cx));
+                let essay = view.read(cx).essay().clone();
+                let ended = saved.and_then(|()| shelve(&self.data.essays, essay));
+                self.ended(ended, "Не убралось в стол", view, window, cx);
+            }
+        }
+    }
+
+    /// An essay that ended has no room left to be in: the editor closes to
+    /// Today with the window put back. One that could not end keeps its room,
+    /// its text and its overlay, and is told why (essay-completion spec).
+    fn ended(
+        &mut self,
+        ended: Result<Essay>,
+        trouble: &str,
+        view: &Entity<EditView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match ended {
+            Ok(_) => self.leave_editor(window, cx),
+            Err(error) => {
+                log::error!("could not finish the essay: {error}");
+                let trouble = format!("{trouble}: {error}");
+                view.update(cx, |edit, cx| edit.complain(trouble, cx));
+            }
         }
     }
 
@@ -249,6 +351,7 @@ impl Focusable for RootView {
         match &self.screen {
             Screen::Write(write) => write.read(cx).focus_handle(cx),
             Screen::Edit(edit) => edit.read(cx).focus_handle(cx),
+            Screen::Shelf(shelf) => shelf.read(cx).focus_handle(cx),
             Screen::Today => self.today.read(cx).focus_handle(cx),
         }
     }
@@ -259,6 +362,7 @@ impl Render for RootView {
         div().size_full().child(match &self.screen {
             Screen::Write(write) => write.clone().into_any_element(),
             Screen::Edit(edit) => edit.clone().into_any_element(),
+            Screen::Shelf(shelf) => shelf.clone().into_any_element(),
             Screen::Today => self.today.clone().into_any_element(),
         })
     }

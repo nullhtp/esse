@@ -1,12 +1,13 @@
-//! esse — the application shell. One window, three screens: Today, and the
-//! editor's two modes, Write and Edit.
+//! esse — the application shell. One window, four screens: Today, the Shelf,
+//! and the editor's two modes, Write and Edit.
 
 mod autosave;
 mod data;
 mod edit;
 mod editor;
+mod line_input;
 mod root;
-mod spark_input;
+mod shelf;
 mod theme;
 mod today;
 mod write;
@@ -19,8 +20,8 @@ use gpui::{
 use gpui_platform::application;
 
 use data::Data;
+use line_input::{Backspace, Delete, End, Home, Left, Paste, Right, Submit};
 use root::RootView;
-use spark_input::{Backspace, Delete, End, Home, Left, Right, Submit};
 
 actions!(esse, [Quit]);
 
@@ -40,15 +41,16 @@ fn main() {
 
     application().run(move |cx: &mut App| {
         cx.bind_keys([
-            KeyBinding::new("enter", Submit, Some("SparkInput")),
-            KeyBinding::new("backspace", Backspace, Some("SparkInput")),
-            KeyBinding::new("delete", Delete, Some("SparkInput")),
-            KeyBinding::new("left", Left, Some("SparkInput")),
-            KeyBinding::new("right", Right, Some("SparkInput")),
-            KeyBinding::new("home", Home, Some("SparkInput")),
-            KeyBinding::new("end", End, Some("SparkInput")),
-            KeyBinding::new("cmd-left", Home, Some("SparkInput")),
-            KeyBinding::new("cmd-right", End, Some("SparkInput")),
+            KeyBinding::new("enter", Submit, Some("LineInput")),
+            KeyBinding::new("backspace", Backspace, Some("LineInput")),
+            KeyBinding::new("delete", Delete, Some("LineInput")),
+            KeyBinding::new("left", Left, Some("LineInput")),
+            KeyBinding::new("right", Right, Some("LineInput")),
+            KeyBinding::new("home", Home, Some("LineInput")),
+            KeyBinding::new("end", End, Some("LineInput")),
+            KeyBinding::new("cmd-left", Home, Some("LineInput")),
+            KeyBinding::new("cmd-right", End, Some("LineInput")),
+            KeyBinding::new("cmd-v", Paste, Some("LineInput")),
             // Leaving either editor mode is one explicit key, and crossing
             // between them is one more — the same gesture in both directions,
             // so it stays in the hand rather than in the head (design.md, D3).
@@ -56,6 +58,8 @@ fn main() {
             KeyBinding::new("cmd-e", write::Switch, Some("Write")),
             KeyBinding::new("escape", edit::Leave, Some("Edit")),
             KeyBinding::new("cmd-e", edit::Switch, Some("Edit")),
+            // The Shelf is left the way the editor rooms are left.
+            KeyBinding::new("escape", shelf::Leave, Some("Shelf")),
             KeyBinding::new("cmd-q", Quit, None),
         ]);
         cx.bind_keys(editor::key_bindings());

@@ -163,6 +163,22 @@ impl Essay {
         self.status
     }
 
+    /// The essay as a blog receives it: the markdown body alone, with none of
+    /// esse's front matter — what "Copy as markdown" and "Export to file…"
+    /// hand out (essay-completion spec).
+    ///
+    /// The stored body already ends where the front matter does; what this adds
+    /// is the tidying text handed to somebody else wants — no blank lines left
+    /// over from the fence above it, and one newline at the end.
+    pub fn body_markdown(&self) -> String {
+        let body = self.body.trim();
+        if body.is_empty() {
+            String::new()
+        } else {
+            format!("{body}\n")
+        }
+    }
+
     pub fn is_in_progress(&self) -> bool {
         self.status.is_in_progress()
     }
@@ -265,6 +281,17 @@ mod tests {
                 assert_eq!(essay.status(), if legal { to } else { from });
             }
         }
+    }
+
+    #[test]
+    fn the_markdown_handed_out_is_the_body_and_nothing_around_it() {
+        let mut essay = essay_in(EssayStatus::Editing);
+        essay.body = "\n\n# Заголовок\n\nПервый абзац.\n\n\n".to_string();
+
+        assert_eq!(essay.body_markdown(), "# Заголовок\n\nПервый абзац.\n");
+
+        essay.body = "  \n\n ".to_string();
+        assert!(essay.body_markdown().is_empty());
     }
 
     #[test]

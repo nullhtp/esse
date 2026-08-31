@@ -5,8 +5,8 @@ use std::fs;
 
 use esse_core::model::now;
 use esse_core::{
-    start_essay_from_spark, DataDir, Error, EssayStatus, EssayStore, Session, SessionStore,
-    SparkStore,
+    publish, shelve, start_essay_from_spark, DataDir, Error, EssayStatus, EssayStore, Session,
+    SessionStore, SparkStore,
 };
 use tempfile::TempDir;
 
@@ -323,6 +323,204 @@ fn a_broken_essay_file_is_reported_with_its_path() {
     let error = store.load("broken").unwrap_err();
     assert!(matches!(error, Error::Format { .. }), "{error}");
     assert!(error.to_string().contains("broken.md"), "{error}");
+}
+
+// -- ending an essay ------------------------------------------------------
+
+#[test]
+fn publishing_records_when_and_where_and_frees_the_slot() {
+    let (_temp, dir) = data_dir();
+    let store = EssayStore::new(&dir);
+    let mut essay = store.create("first", Some("почему эссе")).unwrap();
+    essay.transition_to(EssayStatus::Editing).unwrap();
+
+    let published = publish(&store, essay, Some(" https://example.com/esse ")).unwrap();
+
+    assert_eq!(published.status(), EssayStatus::Published);
+    let loaded = store.load("first").unwrap();
+    assert_eq!(loaded.status(), EssayStatus::Published);
+    assert!(loaded.published_at.is_some());
+    // The link is stored trimmed, as it was typed and not as it was pasted.
+    assert_eq!(
+        loaded.publication_url.as_deref(),
+        Some("https://example.com/esse")
+    );
+    assert!(store.in_progress().unwrap().is_none());
+}
+
+#[test]
+fn publishing_without_a_link_leaves_the_field_out() {
+    // No link at all, and a field the writer left blank: both are "not
+    // published anywhere yet", and neither writes an empty key.
+    for link in [None, Some("   ")] {
+        let (_temp, dir) = data_dir();
+        let store = EssayStore::new(&dir);
+        let essay = store.create("first", None).unwrap();
+
+        publish(&store, essay, link).unwrap();
+
+        let written = fs::read_to_string(store.path("first")).unwrap();
+        assert!(!written.contains("publication_url"), "{written}");
+        let loaded = store.load("first").unwrap();
+        assert!(loaded.publication_url.is_none(), "{link:?}");
+        assert!(loaded.published_at.is_some(), "{link:?}");
+    }
+}
+
+#[test]
+fn shelving_ends_the_essay_and_frees_the_slot() {
+    let (_temp, dir) = data_dir();
+    let store = EssayStore::new(&dir);
+    let essay = store.create("first", None).unwrap();
+
+    let shelved = shelve(&store, essay).unwrap();
+
+    assert_eq!(shelved.status(), EssayStatus::Shelved);
+    assert_eq!(store.load("first").unwrap().status(), EssayStatus::Shelved);
+    assert!(store.published().unwrap().is_empty());
+    assert!(store.in_progress().unwrap().is_none());
+}
+
+#[test]
+fn an_essay_can_only_end_once() {
+    let (_temp, dir) = data_dir();
+    let store = EssayStore::new(&dir);
+    let essay = store.create("first", None).unwrap();
+    let published = publish(&store, essay, Some("https://example.com/esse")).unwrap();
+    let before = fs::read_to_string(store.path("first")).unwrap();
+
+    // Both endings refuse an essay that has already ended, and neither of the
+    // refusals touches the file.
+    let error = publish(&store, published.clone(), None).unwrap_err();
+    assert!(
+        matches!(
+            error,
+            Error::IllegalTransition {
+                from: EssayStatus::Published,
+                to: EssayStatus::Published
+            }
+        ),
+        "{error}"
+    );
+    let error = shelve(&store, published).unwrap_err();
+    assert!(matches!(error, Error::IllegalTransition { .. }), "{error}");
+
+    assert_eq!(fs::read_to_string(store.path("first")).unwrap(), before);
+}
+
+#[test]
+fn the_body_travels_without_the_front_matter() {
+    let (_temp, dir) = data_dir();
+    let store = EssayStore::new(&dir);
+    write_by_hand(&store, "hand-written", HAND_WRITTEN);
+
+    let essay = store.load("hand-written").unwrap();
+
+    assert_eq!(essay.body_markdown(), "# Заголовок\n\nПервый абзац.\n");
+    assert!(!essay.body_markdown().contains("+++"));
+    assert!(!essay.body_markdown().contains("status"));
+
+    // An essay nobody has written into yet has nothing to hand out.
+    let (_temp, dir) = data_dir();
+    let store = EssayStore::new(&dir);
+    assert!(store
+        .create("empty", None)
+        .unwrap()
+        .body_markdown()
+        .is_empty());
+}
+
+// -- the shelf's queries ---------------------------------------------------
+
+/// A published essay file, written by hand so its dates can be told apart —
+/// `published_at` and `updated_at` deliberately disagree about the order.
+fn published_by_hand(store: &EssayStore, slug: &str, published_at: &str, updated_at: &str) {
+    write_by_hand(
+        store,
+        slug,
+        &format!(
+            "+++\nstatus = \"published\"\ncreated_at = \"2026-01-01T10:00:00+03:00\"\nupdated_at = \"{updated_at}\"\npublished_at = \"{published_at}\"\n+++\nТекст.\n"
+        ),
+    );
+}
+
+#[test]
+fn published_essays_come_back_newest_published_first() {
+    let (_temp, dir) = data_dir();
+    let store = EssayStore::new(&dir);
+
+    // The column is ordered by when each essay ended, so the one touched most
+    // recently — a typo fixed by hand months later — keeps its own place.
+    published_by_hand(
+        &store,
+        "first",
+        "2026-02-01T10:00:00+03:00",
+        "2026-08-01T10:00:00+03:00",
+    );
+    published_by_hand(
+        &store,
+        "second",
+        "2026-03-01T10:00:00+03:00",
+        "2026-03-01T10:00:00+03:00",
+    );
+    published_by_hand(
+        &store,
+        "third",
+        "2026-04-01T10:00:00+03:00",
+        "2026-04-01T10:00:00+03:00",
+    );
+
+    let slugs: Vec<_> = store
+        .published()
+        .unwrap()
+        .into_iter()
+        .map(|essay| essay.slug)
+        .collect();
+    assert_eq!(slugs, ["third", "second", "first"]);
+}
+
+#[test]
+fn the_columns_hold_only_what_belongs_in_them() {
+    let (_temp, dir) = data_dir();
+    let store = EssayStore::new(&dir);
+
+    let published = store.create("published", None).unwrap();
+    publish(&store, published, None).unwrap();
+    let shelved = store.create("shelved", None).unwrap();
+    shelve(&store, shelved).unwrap();
+    let mut editing = store.create("editing", None).unwrap();
+    editing.transition_to(EssayStatus::Editing).unwrap();
+    store.save(&editing).unwrap();
+
+    let slugs = |essays: Vec<esse_core::Essay>| -> Vec<String> {
+        essays.into_iter().map(|essay| essay.slug).collect()
+    };
+    assert_eq!(slugs(store.published().unwrap()), ["published"]);
+    assert_eq!(slugs(store.shelved().unwrap()), ["shelved"]);
+    assert_eq!(store.in_progress().unwrap().unwrap().slug, "editing");
+}
+
+#[test]
+fn a_hand_published_essay_without_a_date_still_has_a_place() {
+    let (_temp, dir) = data_dir();
+    let store = EssayStore::new(&dir);
+    write_by_hand(
+        &store,
+        "by-hand",
+        "+++\nstatus = \"published\"\ncreated_at = \"2026-01-01T10:00:00+03:00\"\nupdated_at = \"2026-01-02T10:00:00+03:00\"\n+++\nТекст.\n",
+    );
+    let dated = store.create("dated", None).unwrap();
+    publish(&store, dated, None).unwrap();
+
+    let slugs: Vec<_> = store
+        .published()
+        .unwrap()
+        .into_iter()
+        .map(|essay| essay.slug)
+        .collect();
+    // Published today, so the one with no `published_at` falls back to its
+    // `updated_at` and sorts below rather than dropping out of the column.
+    assert_eq!(slugs, ["dated", "by-hand"]);
 }
 
 // -- starting an essay from a spark ---------------------------------------
