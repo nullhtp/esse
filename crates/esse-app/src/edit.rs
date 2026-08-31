@@ -26,10 +26,14 @@ use gpui::{
 use crate::autosave::Autosave;
 use crate::data::Data;
 use crate::editor::{Edited, EditorStyle, EditorView, Viewport};
+use crate::keymap;
 use crate::line_input::LineInput;
 use crate::theme;
 
-actions!(edit, [Leave, Switch]);
+actions!(
+    edit,
+    [Leave, Switch, Finish, NextAction, PreviousAction, Activate]
+);
 
 /// What Edit mode asks the router for. The text is saved either way.
 pub enum EditEvent {
@@ -47,7 +51,8 @@ pub enum EditEvent {
 
 /// How far the completion flow has got. Absent — no overlay at all, which is
 /// what Edit mode looks like nearly all the time.
-enum Finish {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Stage {
     /// The two outcomes, offered.
     Choosing,
     /// Publishing: copy, export, the optional link, and the confirming action.
@@ -56,11 +61,49 @@ enum Finish {
     Shelving,
 }
 
+/// A place the highlight can stand in a stage, in the order Tab walks them —
+/// which is the order the panel reads down the page, and the order the evening
+/// actually goes in (design.md, D2, D7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Step {
+    Publish,
+    Shelve,
+    NotYet,
+    Copy,
+    Export,
+    /// The link field, which is typed into rather than pressed.
+    Link,
+    Published,
+    Back,
+    Confirm,
+    Decline,
+}
+
+impl Stage {
+    fn steps(self) -> &'static [Step] {
+        match self {
+            Stage::Choosing => &[Step::Publish, Step::Shelve, Step::NotYet],
+            Stage::Publishing => &[
+                Step::Copy,
+                Step::Export,
+                Step::Link,
+                Step::Published,
+                Step::Back,
+            ],
+            Stage::Shelving => &[Step::Confirm, Step::Decline],
+        }
+    }
+}
+
 pub struct EditView {
     autosave: Autosave,
     editor: Entity<EditorView>,
     /// Where the completion flow is, if it has been opened at all.
-    finishing: Option<Finish>,
+    finishing: Option<Stage>,
+    /// Which of the stage's steps the keyboard is on. Nothing, when a stage has
+    /// just opened: ending an essay always takes one deliberate movement first,
+    /// so a stray Enter cannot publish (essay-completion spec).
+    highlight: Option<usize>,
     /// Focus belongs to the overlay while it is open, so a keystroke meant for
     /// a decision cannot land in the text behind it.
     overlay_focus: FocusHandle,
@@ -96,6 +139,7 @@ impl EditView {
             autosave: Autosave::new(data, editor.clone(), essay),
             editor,
             finishing: None,
+            highlight: None,
             overlay_focus: cx.focus_handle(),
             link: cx.new(|cx| LineInput::new("Ссылка на публикацию — если уже есть", cx)),
             note: None,
@@ -151,17 +195,21 @@ impl EditView {
 
     // -- the completion flow ---------------------------------------------
 
+    /// The finish control from the keyboard: the very same opening, so the
+    /// shortcut cannot drift into meaning something else.
+    fn finish_pressed(&mut self, _: &Finish, window: &mut Window, cx: &mut Context<Self>) {
+        if self.finishing.is_none() {
+            self.show(Stage::Choosing, window, cx);
+        }
+    }
+
     /// Move the overlay to a stage, taking focus off the text while it is up.
-    fn show(&mut self, stage: Finish, window: &mut Window, cx: &mut Context<Self>) {
-        let focus = match stage {
-            // The publish panel is where something gets typed, and the link is
-            // the only thing to type.
-            Finish::Publishing => self.link.read(cx).focus_handle(cx),
-            _ => self.overlay_focus.clone(),
-        };
+    /// A stage always opens with nothing under the highlight.
+    fn show(&mut self, stage: Stage, window: &mut Window, cx: &mut Context<Self>) {
         self.finishing = Some(stage);
+        self.highlight = None;
         self.note = None;
-        window.focus(&focus, cx);
+        window.focus(&self.overlay_focus, cx);
         cx.notify();
     }
 
@@ -170,9 +218,84 @@ impl EditView {
     /// spec).
     fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.finishing = None;
+        self.highlight = None;
         self.note = None;
         window.focus(&self.editor.read(cx).focus_handle(cx), cx);
         cx.notify();
+    }
+
+    fn next_action(&mut self, _: &NextAction, window: &mut Window, cx: &mut Context<Self>) {
+        self.step(1, window, cx);
+    }
+
+    fn previous_action(&mut self, _: &PreviousAction, window: &mut Window, cx: &mut Context<Self>) {
+        self.step(-1, window, cx);
+    }
+
+    /// One step round the stage's steps. From nowhere, forwards lands on the
+    /// first and backwards on the last.
+    fn step(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(stage) = self.finishing else {
+            return;
+        };
+        let count = stage.steps().len() as isize;
+        let next = match self.highlight {
+            Some(at) => (at as isize + delta).rem_euclid(count),
+            None if delta > 0 => 0,
+            None => count - 1,
+        } as usize;
+        self.highlight = Some(next);
+
+        // The link is typed into, so standing on it means having the caret in
+        // it; everything else is pressed, and the overlay keeps the keys.
+        let focus = match stage.steps()[next] {
+            Step::Link => self.link.read(cx).focus_handle(cx),
+            _ => self.overlay_focus.clone(),
+        };
+        window.focus(&focus, cx);
+        cx.notify();
+    }
+
+    fn activate(&mut self, _: &Activate, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(step) = self
+            .finishing
+            .zip(self.highlight)
+            .and_then(|(stage, at)| stage.steps().get(at).copied())
+        else {
+            return;
+        };
+        self.take(step, window, cx);
+    }
+
+    /// What a step does — the one place it is written down, so pressing Enter
+    /// on it and clicking it cannot come apart.
+    fn take(&mut self, step: Step, window: &mut Window, cx: &mut Context<Self>) {
+        match step {
+            Step::Publish => self.show(Stage::Publishing, window, cx),
+            Step::Shelve => self.show(Stage::Shelving, window, cx),
+            Step::NotYet => self.close(window, cx),
+            Step::Copy => self.copy(cx),
+            Step::Export => self.export(cx),
+            // Standing on the link field is already all it offers.
+            Step::Link => {}
+            Step::Published => self.publish(cx),
+            Step::Back | Step::Decline => self.show(Stage::Choosing, window, cx),
+            Step::Confirm => cx.emit(EditEvent::Shelve),
+        }
+    }
+
+    /// Whether the completion overlay is up — a small key world of its own, and
+    /// so a place with its own help (shortcut-help spec).
+    pub fn is_finishing(&self) -> bool {
+        self.finishing.is_some()
+    }
+
+    /// Whether the highlight is standing on `step`.
+    fn is_on(&self, step: Step) -> bool {
+        self.finishing
+            .zip(self.highlight)
+            .and_then(|(stage, at)| stage.steps().get(at).copied())
+            == Some(step)
     }
 
     /// The body, on the clipboard, ready to be pasted into a blog.
@@ -240,6 +363,7 @@ impl EditView {
     fn overlay(&self, panel: gpui::AnyElement) -> impl IntoElement {
         div()
             .id("finishing")
+            .key_context(keymap::FINISHING)
             .track_focus(&self.overlay_focus)
             // The decision is in front of the text: a click on the veil is not
             // a click into the essay behind it.
@@ -277,43 +401,26 @@ impl EditView {
             .flex_col()
             .gap(px(10.))
             .child(title("Эссе закончено?"))
-            .child(action("publish", "Опубликовать", true).on_click(
-                cx.listener(|this, _, window, cx| this.show(Finish::Publishing, window, cx)),
-            ))
-            .child(action("shelve", "В стол", false).on_click(
-                cx.listener(|this, _, window, cx| this.show(Finish::Shelving, window, cx)),
-            ))
-            .child(
-                cancel("not-yet", "Ещё нет")
-                    .on_click(cx.listener(|this, _, window, cx| this.close(window, cx))),
-            )
+            .child(self.action("publish", "Опубликовать", true, Step::Publish, cx))
+            .child(self.action("shelve", "В стол", false, Step::Shelve, cx))
+            .child(self.cancel("not-yet", "Ещё нет", Step::NotYet, cx))
     }
 
     /// Copy and export come before the confirming action, because that is the
     /// order the evening actually goes in: copy the text out, post it, paste
-    /// the link back, and only then say it is published (design.md, D2).
+    /// the link back, and only then say it is published (design.md, D2). Tab
+    /// walks them in that order too.
     fn publishing(&self, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .flex()
             .flex_col()
             .gap(px(10.))
             .child(title("Опубликовать"))
-            .child(
-                action("copy", "Скопировать как markdown", false)
-                    .on_click(cx.listener(|this, _, _, cx| this.copy(cx))),
-            )
-            .child(
-                action("export", "Сохранить в файл…", false)
-                    .on_click(cx.listener(|this, _, _, cx| this.export(cx))),
-            )
+            .child(self.action("copy", "Скопировать как markdown", false, Step::Copy, cx))
+            .child(self.action("export", "Сохранить в файл…", false, Step::Export, cx))
             .child(div().pt(px(6.)).child(self.link.clone()))
-            .child(
-                action("published", "Опубликовано", true)
-                    .on_click(cx.listener(|this, _, _, cx| this.publish(cx))),
-            )
-            .child(cancel("back", "Назад").on_click(
-                cx.listener(|this, _, window, cx| this.show(Finish::Choosing, window, cx)),
-            ))
+            .child(self.action("published", "Опубликовано", true, Step::Published, cx))
+            .child(self.cancel("back", "Назад", Step::Back, cx))
     }
 
     /// The one explicit step in front of shelving. Nothing comes back out of
@@ -331,13 +438,76 @@ impl EditView {
                     .text_color(rgb(theme::MUTED))
                     .child("Эссе останется на полке, но вернуть его в работу будет нельзя."),
             )
-            .child(
-                action("shelve-confirm", "Да, в стол", true)
-                    .on_click(cx.listener(|_, _, _, cx| cx.emit(EditEvent::Shelve))),
-            )
-            .child(cancel("shelve-decline", "Нет").on_click(
-                cx.listener(|this, _, window, cx| this.show(Finish::Choosing, window, cx)),
-            ))
+            .child(self.action("shelve-confirm", "Да, в стол", true, Step::Confirm, cx))
+            .child(self.cancel("shelve-decline", "Нет", Step::Decline, cx))
+    }
+
+    /// A thing the panel does. The confirming action carries the ink;
+    /// everything else is a quiet face on paper. Under the pointer or under the
+    /// highlight it lights the same way — there is one way to be "here".
+    fn action(
+        &self,
+        id: &'static str,
+        label: &'static str,
+        confirming: bool,
+        step: Step,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        let button = div()
+            .id(id)
+            .flex()
+            .items_center()
+            .justify_center()
+            .w_full()
+            .py(px(11.))
+            .rounded(px(7.))
+            .text_size(px(theme::BODY_SIZE))
+            .cursor_pointer()
+            .child(label)
+            .on_click(cx.listener(move |this, _, window, cx| this.take(step, window, cx)));
+
+        let here = self.is_on(step);
+        if confirming {
+            button
+                .bg(rgb(if here {
+                    theme::INK_HOVER
+                } else {
+                    theme::INK
+                }))
+                .text_color(rgb(theme::BACKGROUND))
+                .hover(|style| style.bg(rgb(theme::INK_HOVER)))
+        } else {
+            button
+                .bg(rgb(if here {
+                    theme::edit::ACTION_HOVER
+                } else {
+                    theme::edit::ACTION
+                }))
+                .hover(|style| style.bg(rgb(theme::edit::ACTION_HOVER)))
+        }
+    }
+
+    /// The way back out of a stage: a line of text, not a third button.
+    fn cancel(
+        &self,
+        id: &'static str,
+        label: &'static str,
+        step: Step,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        div()
+            .id(id)
+            .pt(px(4.))
+            .text_size(px(theme::SMALL_SIZE))
+            .text_color(rgb(if self.is_on(step) {
+                theme::edit::INK
+            } else {
+                theme::MUTED
+            }))
+            .cursor_pointer()
+            .hover(|style| style.text_color(rgb(theme::edit::INK)))
+            .child(label)
+            .on_click(cx.listener(move |this, _, window, cx| this.take(step, window, cx)))
     }
 }
 
@@ -349,45 +519,6 @@ fn title(text: &'static str) -> impl IntoElement {
         .child(text)
 }
 
-/// A thing the panel does. The confirming action carries the ink; everything
-/// else is a quiet face on paper.
-fn action(id: &'static str, label: &'static str, confirming: bool) -> gpui::Stateful<gpui::Div> {
-    let button = div()
-        .id(id)
-        .flex()
-        .items_center()
-        .justify_center()
-        .w_full()
-        .py(px(11.))
-        .rounded(px(7.))
-        .text_size(px(theme::BODY_SIZE))
-        .cursor_pointer()
-        .child(label);
-
-    if confirming {
-        button
-            .bg(rgb(theme::INK))
-            .text_color(rgb(theme::BACKGROUND))
-            .hover(|style| style.bg(rgb(theme::INK_HOVER)))
-    } else {
-        button
-            .bg(rgb(theme::edit::ACTION))
-            .hover(|style| style.bg(rgb(theme::edit::ACTION_HOVER)))
-    }
-}
-
-/// The way back out of a stage: a line of text, not a third button.
-fn cancel(id: &'static str, label: &'static str) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(id)
-        .pt(px(4.))
-        .text_size(px(theme::SMALL_SIZE))
-        .text_color(rgb(theme::MUTED))
-        .cursor_pointer()
-        .hover(|style| style.text_color(rgb(theme::edit::INK)))
-        .child(label)
-}
-
 impl Focusable for EditView {
     /// There is one thing to focus in Edit mode too, and it is the text.
     fn focus_handle(&self, cx: &App) -> FocusHandle {
@@ -397,20 +528,24 @@ impl Focusable for EditView {
 
 impl Render for EditView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let overlay = match self.finishing.as_ref() {
-            Some(Finish::Choosing) => Some(self.overlay(self.choosing(cx).into_any_element())),
-            Some(Finish::Publishing) => Some(self.overlay(self.publishing(cx).into_any_element())),
-            Some(Finish::Shelving) => Some(self.overlay(self.shelving(cx).into_any_element())),
+        let overlay = match self.finishing {
+            Some(Stage::Choosing) => Some(self.overlay(self.choosing(cx).into_any_element())),
+            Some(Stage::Publishing) => Some(self.overlay(self.publishing(cx).into_any_element())),
+            Some(Stage::Shelving) => Some(self.overlay(self.shelving(cx).into_any_element())),
             None => None,
         };
 
         div()
-            .key_context("Edit")
+            .key_context(keymap::EDIT)
             .relative()
             .size_full()
             .bg(rgb(theme::edit::BACKGROUND))
             .on_action(cx.listener(Self::leave))
             .on_action(cx.listener(Self::switch))
+            .on_action(cx.listener(Self::finish_pressed))
+            .on_action(cx.listener(Self::next_action))
+            .on_action(cx.listener(Self::previous_action))
+            .on_action(cx.listener(Self::activate))
             .child(self.editor.clone())
             .child(
                 // The two ways on, in the same quiet corner: across to the
@@ -430,7 +565,7 @@ impl Render for EditView {
                             .cursor_pointer()
                             .hover(|style| style.text_color(rgb(theme::edit::SWITCH_HOVER)))
                             .on_click(cx.listener(|this, _, window, cx| {
-                                this.show(Finish::Choosing, window, cx)
+                                this.show(Stage::Choosing, window, cx)
                             }))
                             .child("Закончить"),
                     )

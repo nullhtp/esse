@@ -7,6 +7,8 @@ mod data;
 mod edit;
 mod editor;
 mod essay;
+mod help;
+mod keymap;
 mod line_input;
 mod root;
 mod shelf;
@@ -18,13 +20,12 @@ use std::time::Instant;
 
 use esse_core::DataDir;
 use gpui::{
-    actions, prelude::*, px, size, App, Bounds, Focusable, KeyBinding, TitlebarOptions,
-    WindowBounds, WindowOptions,
+    actions, prelude::*, px, size, App, Bounds, Focusable, TitlebarOptions, WindowBounds,
+    WindowOptions,
 };
 use gpui_platform::application;
 
 use data::Data;
-use line_input::{Backspace, Delete, End, Home, Left, Paste, Right, Submit};
 use root::RootView;
 
 actions!(esse, [Quit]);
@@ -48,37 +49,14 @@ fn main() {
     let data = Data::open(&dir);
 
     application().run(move |cx: &mut App| {
-        cx.bind_keys([
-            KeyBinding::new("enter", Submit, Some("LineInput")),
-            KeyBinding::new("backspace", Backspace, Some("LineInput")),
-            KeyBinding::new("delete", Delete, Some("LineInput")),
-            KeyBinding::new("left", Left, Some("LineInput")),
-            KeyBinding::new("right", Right, Some("LineInput")),
-            KeyBinding::new("home", Home, Some("LineInput")),
-            KeyBinding::new("end", End, Some("LineInput")),
-            KeyBinding::new("cmd-left", Home, Some("LineInput")),
-            KeyBinding::new("cmd-right", End, Some("LineInput")),
-            KeyBinding::new("cmd-v", Paste, Some("LineInput")),
-            // Leaving either editor mode is one explicit key, and crossing
-            // between them is one more — the same gesture in both directions,
-            // so it stays in the hand rather than in the head (design.md, D3).
-            KeyBinding::new("escape", write::Leave, Some("Write")),
-            KeyBinding::new("cmd-e", write::Switch, Some("Write")),
-            KeyBinding::new("escape", edit::Leave, Some("Edit")),
-            KeyBinding::new("cmd-e", edit::Switch, Some("Edit")),
-            // Today's two moves, so the daily loop needs no pointer: the
-            // Write button, and the way to the Shelf. Both take a modifier —
-            // plain keys belong to the capture line (keyboard-shortcuts spec).
-            KeyBinding::new("cmd-enter", today::Write, Some("Today")),
-            KeyBinding::new("cmd-l", today::Shelf, Some("Today")),
-            // The Shelf is left the way the editor rooms are left — and also
-            // by the gesture that opened it, so the trip there and back is
-            // one key pressed twice.
-            KeyBinding::new("escape", shelf::Leave, Some("Shelf")),
-            KeyBinding::new("cmd-l", shelf::Leave, Some("Shelf")),
-            KeyBinding::new("cmd-q", Quit, None),
-        ]);
+        // Every shortcut the app has vocabulary for comes from one table, which
+        // is also what the help overlay reads (keymap.rs, design.md D1). The
+        // two baseline sets — the editor's and the capture line's — are the
+        // platform's conventions rather than this app's, and stay with the
+        // things they belong to.
+        cx.bind_keys(keymap::bindings());
         cx.bind_keys(editor::key_bindings());
+        cx.bind_keys(line_input::key_bindings());
         cx.on_action(|_: &Quit, cx: &mut App| cx.quit());
 
         // Closing the only window ends the app; esse has nothing to stay

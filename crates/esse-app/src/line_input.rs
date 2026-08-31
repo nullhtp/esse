@@ -24,6 +24,27 @@ actions!(
     [Backspace, Delete, Left, Right, Home, End, Paste, Submit]
 );
 
+/// The field's baseline: a caret, deletion, paste, and Enter. Like the editor's
+/// own set these are platform conventions rather than vocabulary this app
+/// invented, so they live here rather than in the keymap table and help does
+/// not list them (design.md, D1).
+pub fn key_bindings() -> Vec<gpui::KeyBinding> {
+    use gpui::KeyBinding as Key;
+    const INPUT: Option<&str> = Some(crate::keymap::LINE_INPUT);
+    vec![
+        Key::new("enter", Submit, INPUT),
+        Key::new("backspace", Backspace, INPUT),
+        Key::new("delete", Delete, INPUT),
+        Key::new("left", Left, INPUT),
+        Key::new("right", Right, INPUT),
+        Key::new("home", Home, INPUT),
+        Key::new("end", End, INPUT),
+        Key::new("cmd-left", Home, INPUT),
+        Key::new("cmd-right", End, INPUT),
+        Key::new("cmd-v", Paste, INPUT),
+    ]
+}
+
 /// The line was submitted. The text travels with the event: the field is
 /// cleared by whoever saved it, and only once the spark is on disk.
 pub struct Submitted(pub String);
@@ -377,7 +398,7 @@ impl EntityInputHandler for LineInput {
 impl Render for LineInput {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
-            .key_context("LineInput")
+            .key_context(crate::keymap::LINE_INPUT)
             .track_focus(&self.focus_handle(cx))
             .cursor(CursorStyle::IBeam)
             .w_full()

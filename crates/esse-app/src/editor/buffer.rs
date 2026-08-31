@@ -11,6 +11,8 @@
 
 use std::ops::Range;
 
+use markdown_lite::{parse_line, SpanKind};
+
 /// Where the caret sits, and what is selected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Selection {
@@ -437,6 +439,129 @@ impl Buffer {
         self.last_edit = None;
     }
 
+    // -- markup -----------------------------------------------------------
+    //
+    // Applying markup is editing the markers, not decorating a range: the
+    // parser renders whatever comes out, undo takes it back in one step, and
+    // the text on disk is the text that was typed (design.md, D4).
+
+    /// Wrap the selection — or the word the caret is in — in `**` or `*`, or
+    /// strip the markers when it is already emphasised that way. Returns
+    /// whether anything changed.
+    ///
+    /// A selection crossing a line break is left alone: emphasis is a thing you
+    /// do to a phrase. So is an empty line, and so is a caret sitting on a
+    /// space or on a marker, where there is no word to speak of.
+    pub fn toggle_inline(&mut self, emphasis: Emphasis) -> bool {
+        let line = self.line_range(self.cursor_line());
+        let target = if self.selection.is_empty() {
+            match self.word_at(self.selection.head) {
+                Some(word) => word,
+                None => return false,
+            }
+        } else {
+            let range = self.selection.range();
+            if range.start < line.start || range.end > line.end {
+                return false;
+            }
+            range
+        };
+        if target.is_empty() {
+            return false;
+        }
+
+        let local = (target.start - line.start)..(target.end - line.start);
+        let enclosing = enclosing_span(&self.text[line.clone()], &local, emphasis)
+            .map(|(open, close)| {
+                (
+                    (line.start + open.start)..(line.start + open.end),
+                    (line.start + close.start)..(line.start + close.end),
+                )
+            });
+
+        self.checkpoint(EditKind::Discrete);
+        let Selection { anchor, head } = self.selection;
+        self.selection = match enclosing {
+            // Already emphasised: take the markers away. The closer goes first,
+            // so the opener's offsets are still good.
+            Some((open, close)) => {
+                self.text.replace_range(close.clone(), "");
+                self.text.replace_range(open.clone(), "");
+                Selection {
+                    anchor: unwrapped(anchor, &open, &close),
+                    head: unwrapped(head, &open, &close),
+                }
+            }
+            None => {
+                let marker = emphasis.marker();
+                self.text.insert_str(target.end, marker);
+                self.text.insert_str(target.start, marker);
+                Selection {
+                    anchor: wrapped(anchor, &target, marker.len()),
+                    head: wrapped(head, &target, marker.len()),
+                }
+            }
+        };
+        self.reindex();
+        self.goal_column = None;
+        true
+    }
+
+    /// Make the caret's line a heading of `level`, replacing whatever marker it
+    /// had — or take the marker off when the line is already at that level. The
+    /// caret keeps its place in the words, not its place in the line.
+    pub fn set_heading(&mut self, level: u8) {
+        let line = self.line_range(self.cursor_line());
+        let heading = parse_line(&self.text[line.clone()]).heading;
+        let old = heading.as_ref().map_or(0, |heading| heading.marker.end);
+        let new = match heading.as_ref().map(|heading| heading.level) {
+            Some(current) if current == level => String::new(),
+            _ => format!("{} ", "#".repeat(level as usize)),
+        };
+
+        self.checkpoint(EditKind::Discrete);
+        self.text
+            .replace_range(line.start..line.start + old, &new);
+        self.reindex();
+
+        let body = line.start + new.len();
+        let shift = |offset: usize| {
+            if offset <= line.start {
+                offset
+            } else if offset < line.start + old {
+                // The caret was inside the old marker; it belongs at the front
+                // of the words rather than inside the new one.
+                body
+            } else {
+                (offset + new.len()).saturating_sub(old)
+            }
+        };
+        self.selection = Selection {
+            anchor: self.clamp(shift(self.selection.anchor)),
+            head: self.clamp(shift(self.selection.head)),
+        };
+        self.goal_column = None;
+    }
+
+    /// The word the caret is in — the boundaries the word jumps use, so a
+    /// toggle covers exactly what `alt-left` and `alt-right` would.
+    fn word_at(&self, offset: usize) -> Option<Range<usize>> {
+        let line = self.line_range(self.line_at(offset));
+        let mut start = offset;
+        while start > line.start {
+            let previous = self.prev_boundary(start)?;
+            if is_word_break(self.char_at(previous)) {
+                break;
+            }
+            start = previous;
+        }
+        let mut end = offset;
+        while end < line.end && !is_word_break(self.char_at(end)) {
+            end = self.next_boundary(end)?;
+        }
+        (start < end).then_some(start..end)
+    }
+
     // -- internals --------------------------------------------------------
 
     fn reindex(&mut self) {
@@ -479,6 +604,92 @@ impl Buffer {
 /// are word; everything else — spaces, punctuation, markdown markers — is not.
 fn is_word_break(ch: char) -> bool {
     !ch.is_alphanumeric() && ch != '\'' && ch != '’'
+}
+
+/// The emphasis a toggle applies — the whole of markdown-lite's inline syntax.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Emphasis {
+    Bold,
+    Italic,
+}
+
+impl Emphasis {
+    fn marker(self) -> &'static str {
+        match self {
+            Emphasis::Bold => "**",
+            Emphasis::Italic => "*",
+        }
+    }
+}
+
+/// The innermost `**…**` or `*…*` around `target`, as its two marker ranges —
+/// or `None`, which means there is nothing to strip and the toggle wraps.
+///
+/// The spans come from the parser rather than from scanning for asterisks, so a
+/// `*` that is only a `*` is never mistaken for a marker. Markers arrive in
+/// source order and nest at most one deep the other way round, so a stack keyed
+/// by marker width pairs them: a marker as wide as the one on top of the stack
+/// closes it, anything else opens.
+fn enclosing_span(
+    line: &str,
+    target: &Range<usize>,
+    emphasis: Emphasis,
+) -> Option<(Range<usize>, Range<usize>)> {
+    let parsed = parse_line(line);
+    let heading = parsed.heading.as_ref().map(|heading| heading.marker.clone());
+    let width = emphasis.marker().len();
+    let mut open: Vec<Range<usize>> = Vec::new();
+
+    for span in &parsed.spans {
+        if !matches!(span.kind, SpanKind::Marker) || Some(&span.range) == heading.as_ref() {
+            continue;
+        }
+        match open.last() {
+            Some(last) if last.len() == span.range.len() => {
+                let opener = open.pop().expect("the stack was just read");
+                // Ambiguity resolves to wrapping, so only a target the pair
+                // really encloses — markers and all — counts as already
+                // emphasised.
+                if opener.len() == width
+                    && opener.start <= target.start
+                    && target.end <= span.range.end
+                {
+                    return Some((opener, span.range.clone()));
+                }
+            }
+            _ => open.push(span.range.clone()),
+        }
+    }
+    None
+}
+
+/// Where an offset lands once the two markers are gone. Offsets inside a marker
+/// collapse onto the text it was hiding, so a selection still covers the words
+/// it covered.
+fn unwrapped(offset: usize, open: &Range<usize>, close: &Range<usize>) -> usize {
+    if offset <= open.start {
+        offset
+    } else if offset <= open.end {
+        open.start
+    } else if offset <= close.start {
+        offset - open.len()
+    } else if offset <= close.end {
+        close.start - open.len()
+    } else {
+        offset - open.len() - close.len()
+    }
+}
+
+/// Where an offset lands once `target` has been wrapped in markers `width`
+/// bytes wide. The edges of the target move inside the markers, not outside.
+fn wrapped(offset: usize, target: &Range<usize>, width: usize) -> usize {
+    if offset < target.start {
+        offset
+    } else if offset <= target.end {
+        offset + width
+    } else {
+        offset + 2 * width
+    }
 }
 
 #[cfg(test)]
@@ -906,6 +1117,184 @@ mod tests {
 
         buffer.undo();
         assert!(buffer.revision() > typed, "undo is a change of its own");
+    }
+
+    // -- markup -----------------------------------------------------------
+
+    fn selecting(text: &str, range: Range<usize>) -> Buffer {
+        let mut buffer = Buffer::new(text);
+        buffer.set_cursor(range.start);
+        buffer.move_head(range.end, true);
+        buffer
+    }
+
+    #[test]
+    fn emphasis_wraps_a_selection_and_keeps_it_on_the_same_words() {
+        let mut buffer = selecting("one word here", 4..8);
+        assert_eq!(buffer.selected_text(), "word");
+
+        assert!(buffer.toggle_inline(Emphasis::Bold));
+        assert_eq!(buffer.text(), "one **word** here");
+        assert_eq!(
+            buffer.selected_text(),
+            "word",
+            "the selection follows the words, not the offsets"
+        );
+    }
+
+    #[test]
+    fn emphasis_wraps_cyrillic_by_the_letter_too() {
+        let mut buffer = selecting("одно слово здесь", 9..19);
+        assert_eq!(buffer.selected_text(), "слово");
+
+        assert!(buffer.toggle_inline(Emphasis::Bold));
+        assert_eq!(buffer.text(), "одно **слово** здесь");
+        assert_eq!(buffer.selected_text(), "слово");
+    }
+
+    #[test]
+    fn toggling_again_takes_the_markers_off() {
+        let mut buffer = selecting("one **word** here", 6..10);
+        assert_eq!(buffer.selected_text(), "word");
+
+        assert!(buffer.toggle_inline(Emphasis::Bold));
+        assert_eq!(buffer.text(), "one word here");
+        assert_eq!(buffer.selected_text(), "word");
+    }
+
+    #[test]
+    fn a_selection_over_the_markers_unwraps_the_words_inside_them() {
+        let mut buffer = selecting("one **word** here", 4..12);
+        assert_eq!(buffer.selected_text(), "**word**");
+
+        assert!(buffer.toggle_inline(Emphasis::Bold));
+        assert_eq!(buffer.text(), "one word here");
+        assert_eq!(buffer.selected_text(), "word");
+    }
+
+    #[test]
+    fn with_no_selection_the_word_at_the_caret_is_styled() {
+        let mut buffer = Buffer::new("a word here");
+        buffer.set_cursor(3);
+
+        assert!(buffer.toggle_inline(Emphasis::Italic));
+        assert_eq!(buffer.text(), "a *word* here");
+        assert_eq!(buffer.cursor(), 4, "the caret stays on the same letter");
+        assert!(buffer.selection().is_empty());
+    }
+
+    #[test]
+    fn a_caret_at_the_end_of_a_word_styles_that_word() {
+        let mut buffer = Buffer::new("a word");
+        buffer.set_cursor(6);
+
+        assert!(buffer.toggle_inline(Emphasis::Bold));
+        assert_eq!(buffer.text(), "a **word**");
+        assert_eq!(buffer.cursor(), 8, "still just after the word");
+    }
+
+    #[test]
+    fn a_caret_with_no_word_under_it_changes_nothing() {
+        // Between two spaces there is no word to speak of, and a toggle with
+        // nothing to apply to is not an edit.
+        let mut buffer = Buffer::new("a  word");
+        buffer.set_cursor(2);
+        assert!(!buffer.toggle_inline(Emphasis::Bold), "on a space");
+        assert_eq!(buffer.text(), "a  word");
+
+        let mut empty = Buffer::new("");
+        assert!(!empty.toggle_inline(Emphasis::Bold), "on an empty line");
+        assert_eq!(empty.text(), "");
+        assert!(
+            !empty.undo(),
+            "a toggle that did nothing left nothing to undo"
+        );
+    }
+
+    #[test]
+    fn a_mixed_selection_wraps_rather_than_guessing() {
+        let mut buffer = selecting("**one** two", 0..11);
+
+        assert!(buffer.toggle_inline(Emphasis::Bold));
+        assert_eq!(
+            buffer.text(),
+            "****one** two**",
+            "half-styled is not styled: the toggle adds markers"
+        );
+    }
+
+    #[test]
+    fn a_selection_across_lines_is_left_alone() {
+        let mut buffer = selecting("one\ntwo", 0..7);
+
+        assert!(!buffer.toggle_inline(Emphasis::Bold));
+        assert_eq!(buffer.text(), "one\ntwo");
+    }
+
+    #[test]
+    fn one_undo_takes_a_toggle_back_whole() {
+        let mut buffer = selecting("one word here", 4..8);
+        let before = buffer.text().to_string();
+        let selected = buffer.selection();
+
+        buffer.toggle_inline(Emphasis::Bold);
+        assert!(buffer.undo());
+        assert_eq!(buffer.text(), before);
+        assert_eq!(buffer.selection(), selected);
+        assert!(!buffer.undo(), "one step, not two");
+    }
+
+    #[test]
+    fn a_plain_line_becomes_a_heading() {
+        let mut buffer = Buffer::new("text");
+        buffer.set_cursor(2);
+
+        buffer.set_heading(2);
+        assert_eq!(buffer.text(), "## text");
+        assert_eq!(buffer.cursor(), 5, "still on the same letter");
+    }
+
+    #[test]
+    fn another_level_replaces_the_marker() {
+        let mut buffer = Buffer::new("# text");
+        buffer.set_cursor(3);
+
+        buffer.set_heading(3);
+        assert_eq!(buffer.text(), "### text");
+        assert_eq!(buffer.cursor(), 5);
+    }
+
+    #[test]
+    fn the_same_level_takes_the_marker_off() {
+        let mut buffer = Buffer::new("## text");
+        buffer.set_cursor(3);
+
+        buffer.set_heading(2);
+        assert_eq!(buffer.text(), "text");
+        assert_eq!(buffer.cursor(), 0);
+    }
+
+    #[test]
+    fn a_caret_inside_the_marker_lands_on_the_words() {
+        let mut buffer = Buffer::new("## text");
+        buffer.set_cursor(1);
+
+        buffer.set_heading(1);
+        assert_eq!(buffer.text(), "# text");
+        assert_eq!(buffer.cursor(), 2);
+    }
+
+    #[test]
+    fn a_heading_only_touches_the_caret_s_line() {
+        let mut buffer = Buffer::new("first\nsecond\nthird");
+        buffer.set_cursor(8);
+
+        buffer.set_heading(1);
+        assert_eq!(buffer.text(), "first\n# second\nthird");
+
+        assert!(buffer.undo());
+        assert_eq!(buffer.text(), "first\nsecond\nthird");
+        assert!(!buffer.undo(), "one step, not two");
     }
 
     // -- robustness -------------------------------------------------------

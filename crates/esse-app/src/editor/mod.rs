@@ -33,7 +33,7 @@ use gpui::{
 };
 
 use crate::theme;
-use buffer::Buffer;
+use buffer::{Buffer, Emphasis};
 use element::{EditorElement, PaintedFrame};
 use viewport::Scroll;
 pub use viewport::Viewport;
@@ -47,6 +47,9 @@ actions!(
         Delete,
         Down,
         End,
+        Heading1,
+        Heading2,
+        Heading3,
         Home,
         Left,
         Newline,
@@ -62,6 +65,8 @@ actions!(
         SelectUp,
         SelectWordLeft,
         SelectWordRight,
+        ToggleBold,
+        ToggleItalic,
         Undo,
         Up,
         WordLeft,
@@ -69,7 +74,11 @@ actions!(
     ]
 );
 
-/// Every key the editor answers to. Bound once, at startup.
+/// The editor's baseline: moving, selecting, deleting, the clipboard, undo.
+/// Bound once, at startup, and deliberately kept out of the keymap table —
+/// these are what every text field on the platform does, not vocabulary this
+/// app invented, so help does not list them (design.md, D1). The markup keys
+/// are in the table.
 pub fn key_bindings() -> Vec<gpui::KeyBinding> {
     use gpui::KeyBinding as Key;
     const EDITOR: Option<&str> = Some("Editor");
@@ -450,6 +459,41 @@ impl EditorView {
         }
     }
 
+    // -- markup ----------------------------------------------------------
+    //
+    // The same five keys in both rooms: markup is part of writing, not a mode
+    // of its own (design.md, D4). Each is an ordinary edit, so it saves, undoes
+    // and renders through the paths everything else already uses.
+
+    fn toggle_bold(&mut self, _: &ToggleBold, _: &mut Window, cx: &mut Context<Self>) {
+        if self.buffer.toggle_inline(Emphasis::Bold) {
+            self.edited(cx);
+        }
+    }
+
+    fn toggle_italic(&mut self, _: &ToggleItalic, _: &mut Window, cx: &mut Context<Self>) {
+        if self.buffer.toggle_inline(Emphasis::Italic) {
+            self.edited(cx);
+        }
+    }
+
+    fn heading_1(&mut self, _: &Heading1, _: &mut Window, cx: &mut Context<Self>) {
+        self.set_heading(1, cx);
+    }
+
+    fn heading_2(&mut self, _: &Heading2, _: &mut Window, cx: &mut Context<Self>) {
+        self.set_heading(2, cx);
+    }
+
+    fn heading_3(&mut self, _: &Heading3, _: &mut Window, cx: &mut Context<Self>) {
+        self.set_heading(3, cx);
+    }
+
+    fn set_heading(&mut self, level: u8, cx: &mut Context<Self>) {
+        self.buffer.set_heading(level);
+        self.edited(cx);
+    }
+
     fn paste(&mut self, _: &Paste, _: &mut Window, cx: &mut Context<Self>) {
         if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
             // Whatever the clipboard carries, the document only ever gains the
@@ -679,7 +723,7 @@ impl EntityInputHandler for EditorView {
 impl Render for EditorView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
-            .key_context("Editor")
+            .key_context(crate::keymap::EDITOR)
             .track_focus(&self.focus_handle(cx))
             .cursor(CursorStyle::IBeam)
             .size_full()
@@ -709,6 +753,11 @@ impl Render for EditorView {
             .on_action(cx.listener(Self::copy))
             .on_action(cx.listener(Self::cut))
             .on_action(cx.listener(Self::paste))
+            .on_action(cx.listener(Self::toggle_bold))
+            .on_action(cx.listener(Self::toggle_italic))
+            .on_action(cx.listener(Self::heading_1))
+            .on_action(cx.listener(Self::heading_2))
+            .on_action(cx.listener(Self::heading_3))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))

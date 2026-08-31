@@ -20,9 +20,12 @@ use gpui::{
 
 use crate::data::Data;
 use crate::essay::title;
+use crate::keymap;
 use crate::theme;
 
-actions!(shelf, [Leave]);
+// Nothing on the Shelf is typed into, so the bare arrows and Enter are free to
+// mean the cards (design.md, D6).
+actions!(shelf, [Leave, Left, Right, Up, Down, Activate, Drawer]);
 
 /// What the screen asks the router for.
 pub enum ShelfEvent {
@@ -47,10 +50,20 @@ struct Contents {
     shelved: Vec<Essay>,
 }
 
+/// Which card the keyboard is on: a column, and a row inside it. The columns
+/// are numbered as they are drawn — sparks, in progress, published.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Spot {
+    column: usize,
+    row: usize,
+}
+
 pub struct ShelfView {
     data: Rc<Data>,
     focus_handle: FocusHandle,
     contents: Contents,
+    /// The card under the highlight, when there is a card to be on at all.
+    highlight: Option<Spot>,
     /// The drawer opens only to be looked at, and starts closed every time.
     drawer_open: bool,
     /// What the router had to say — a start it refused.
@@ -68,6 +81,7 @@ impl ShelfView {
             data,
             focus_handle: cx.focus_handle(),
             contents: Contents::default(),
+            highlight: None,
             drawer_open: false,
             notice: None,
             trouble: None,
@@ -95,6 +109,7 @@ impl ShelfView {
             Ok(contents) => {
                 self.contents = contents;
                 self.trouble = None;
+                self.highlight = first_spot(self.columns(), self.startable());
             }
             // One unreadable file makes the whole picture doubtful — and a
             // doubtful picture of what is in progress is not one to offer a
@@ -102,6 +117,7 @@ impl ShelfView {
             Err(error) => {
                 log::error!("could not read the shelf: {error}");
                 self.contents = Contents::default();
+                self.highlight = None;
                 self.trouble = Some(format!("Полка не читается: {error}"));
             }
         }
@@ -120,26 +136,107 @@ impl ShelfView {
         cx.emit(ShelfEvent::Left);
     }
 
+    // -- the highlight -----------------------------------------------------
+
+    /// While an essay is in progress the sparks are a list to look at and
+    /// nothing more: there is no start to offer (shelf-screen spec).
+    fn startable(&self) -> bool {
+        self.contents.in_progress.is_none()
+    }
+
+    /// How many cards each column holds, in the order they are drawn.
+    fn columns(&self) -> [usize; COLUMNS] {
+        [
+            self.contents.sparks.len(),
+            usize::from(self.contents.in_progress.is_some()),
+            self.contents.published.len(),
+        ]
+    }
+
+    fn left(&mut self, _: &Left, _: &mut Window, cx: &mut Context<Self>) {
+        self.step(step_column, -1, cx);
+    }
+
+    fn right(&mut self, _: &Right, _: &mut Window, cx: &mut Context<Self>) {
+        self.step(step_column, 1, cx);
+    }
+
+    fn up(&mut self, _: &Up, _: &mut Window, cx: &mut Context<Self>) {
+        self.step(step_row, -1, cx);
+    }
+
+    fn down(&mut self, _: &Down, _: &mut Window, cx: &mut Context<Self>) {
+        self.step(step_row, 1, cx);
+    }
+
+    fn step(
+        &mut self,
+        how: fn(Spot, [usize; COLUMNS], isize) -> Spot,
+        delta: isize,
+        cx: &mut Context<Self>,
+    ) {
+        let columns = self.columns();
+        if let Some(spot) = self.highlight {
+            self.highlight = Some(how(spot, columns, delta));
+            cx.notify();
+        }
+    }
+
+    /// Enter does to the highlighted card exactly what a click does to it: a
+    /// spark starts an essay while the slot is free, the card in progress
+    /// carries on with it, and a published card offers nothing to either.
+    fn activate(&mut self, _: &Activate, _: &mut Window, cx: &mut Context<Self>) {
+        let Some(spot) = self.highlight else {
+            return;
+        };
+        match spot.column {
+            SPARKS if self.startable() => {
+                if let Some(spark) = self.contents.sparks.get(spot.row) {
+                    cx.emit(ShelfEvent::Start(spark.id.clone()));
+                }
+            }
+            IN_PROGRESS if self.contents.in_progress.is_some() => {
+                cx.emit(ShelfEvent::Continue)
+            }
+            _ => {}
+        }
+    }
+
+    fn drawer_toggled(&mut self, _: &Drawer, _: &mut Window, cx: &mut Context<Self>) {
+        self.drawer_open = !self.drawer_open;
+        cx.notify();
+    }
+
+    /// Whether the card at `column`/`row` is the one under the highlight.
+    fn is_on(&self, column: usize, row: usize) -> bool {
+        self.highlight == Some(Spot { column, row })
+    }
+
     // -- the columns ------------------------------------------------------
 
     fn sparks_column(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        // While an essay is in progress the sparks are a list to look at and
-        // nothing more: there is no start to offer (shelf-screen spec).
-        let startable = self.contents.in_progress.is_none();
+        let startable = self.startable();
 
         column("sparks", "Искры")
             .children(self.contents.sparks.is_empty().then(|| empty("Пока пусто")))
-            .children(self.contents.sparks.iter().map(|spark| {
-                let id = spark.id.clone();
-                let row = row(spark.id.clone()).child(SharedString::from(spark.text.clone()));
-                if startable {
-                    pickable(row).on_click(
-                        cx.listener(move |_, _, _, cx| cx.emit(ShelfEvent::Start(id.clone()))),
-                    )
-                } else {
-                    row
-                }
-            }))
+            .children(
+                self.contents
+                    .sparks
+                    .iter()
+                    .enumerate()
+                    .map(|(index, spark)| {
+                        let id = spark.id.clone();
+                        let row = row(spark.id.clone(), self.is_on(SPARKS, index))
+                            .child(SharedString::from(spark.text.clone()));
+                        if startable {
+                            pickable(row).on_click(cx.listener(move |_, _, _, cx| {
+                                cx.emit(ShelfEvent::Start(id.clone()))
+                            }))
+                        } else {
+                            row
+                        }
+                    }),
+            )
     }
 
     fn in_progress_column(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -151,7 +248,7 @@ impl ShelfView {
                     .then(|| empty("Ничего не пишется")),
             )
             .children(self.contents.in_progress.as_ref().map(|essay| {
-                pickable(row(essay.slug.clone()))
+                pickable(row(essay.slug.clone(), self.is_on(IN_PROGRESS, 0)))
                     .child(SharedString::from(title(essay)))
                     .child(
                         div()
@@ -175,17 +272,23 @@ impl ShelfView {
                     .is_empty()
                     .then(|| empty("Пока ничего")),
             )
-            .children(self.contents.published.iter().map(|essay| {
-                row(essay.slug.clone())
-                    .child(SharedString::from(title(essay)))
-                    .children(essay.publication_url.clone().map(|url| {
-                        div()
-                            .pt(px(3.))
-                            .text_size(px(theme::SMALL_SIZE))
-                            .text_color(rgb(theme::MUTED))
-                            .child(SharedString::from(url))
-                    }))
-            }))
+            .children(
+                self.contents
+                    .published
+                    .iter()
+                    .enumerate()
+                    .map(|(index, essay)| {
+                        row(essay.slug.clone(), self.is_on(PUBLISHED, index))
+                            .child(SharedString::from(title(essay)))
+                            .children(essay.publication_url.clone().map(|url| {
+                                div()
+                                    .pt(px(3.))
+                                    .text_size(px(theme::SMALL_SIZE))
+                                    .text_color(rgb(theme::MUTED))
+                                    .child(SharedString::from(url))
+                            }))
+                    }),
+            )
     }
 
     /// The drawer. Shelved essays are here to be seen and nothing else — the
@@ -204,9 +307,8 @@ impl ShelfView {
                     .text_color(rgb(theme::MUTED))
                     .cursor_pointer()
                     .hover(|style| style.text_color(rgb(theme::INK)))
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.drawer_open = !this.drawer_open;
-                        cx.notify();
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.drawer_toggled(&Drawer, window, cx)
                     }))
                     .child(format!("В столе {marker}")),
             )
@@ -220,7 +322,7 @@ impl ShelfView {
                     .text_color(rgb(theme::MUTED))
                     .children(self.contents.shelved.is_empty().then(|| empty("Стол пуст")))
                     .children(self.contents.shelved.iter().map(|essay| {
-                        row(essay.slug.clone()).child(SharedString::from(title(essay)))
+                        row(essay.slug.clone(), false).child(SharedString::from(title(essay)))
                     }))
             }))
     }
@@ -248,21 +350,73 @@ fn column(id: &'static str, heading: &'static str) -> gpui::Stateful<gpui::Div> 
         )
 }
 
-fn row(id: String) -> gpui::Stateful<gpui::Div> {
+/// A row, in its nook, lit when the keyboard is on it.
+fn row(id: String, highlighted: bool) -> gpui::Stateful<gpui::Div> {
     div()
         .id(SharedString::from(id))
         .py(px(9.))
+        .px(px(8.))
+        .ml(px(-8.))
+        .rounded(px(5.))
         .text_size(px(theme::BODY_SIZE))
+        .when(highlighted, |row| row.bg(rgb(theme::HIGHLIGHT)))
 }
 
 /// A row that answers to the pointer, in the same treatment the Today list
 /// uses while a spark is being chosen.
 fn pickable(row: gpui::Stateful<gpui::Div>) -> gpui::Stateful<gpui::Div> {
-    row.px(px(8.))
-        .ml(px(-8.))
-        .rounded(px(5.))
-        .cursor_pointer()
+    row.cursor_pointer()
         .hover(|style| style.bg(rgb(theme::HIGHLIGHT)))
+}
+
+/// The three columns, in the order the pipeline runs and the screen draws them.
+const SPARKS: usize = 0;
+const IN_PROGRESS: usize = 1;
+const PUBLISHED: usize = 2;
+const COLUMNS: usize = 3;
+
+/// Where the highlight sits when the Shelf opens: the first card that can
+/// actually be acted on, and failing that the first card there is
+/// (shelf-screen spec).
+fn first_spot(columns: [usize; COLUMNS], startable: bool) -> Option<Spot> {
+    let actionable = [(SPARKS, startable), (IN_PROGRESS, true)]
+        .into_iter()
+        .find(|&(column, offered)| offered && columns[column] > 0);
+
+    let column = match actionable {
+        Some((column, _)) => column,
+        None => (0..COLUMNS).find(|&column| columns[column] > 0)?,
+    };
+    Some(Spot { column, row: 0 })
+}
+
+/// One step sideways, over the columns that have something in them. The ends
+/// are ends: there is no wrapping round a picture of a conveyor.
+fn step_column(spot: Spot, columns: [usize; COLUMNS], delta: isize) -> Spot {
+    let mut column = spot.column;
+    loop {
+        let next = column as isize + delta;
+        if next < 0 || next >= COLUMNS as isize {
+            break;
+        }
+        column = next as usize;
+        if columns[column] > 0 {
+            return Spot {
+                column,
+                row: spot.row.min(columns[column] - 1),
+            };
+        }
+    }
+    spot
+}
+
+/// One step along a column, stopping at its ends.
+fn step_row(spot: Spot, columns: [usize; COLUMNS], delta: isize) -> Spot {
+    let row = (spot.row as isize + delta).clamp(0, columns[spot.column].saturating_sub(1) as isize);
+    Spot {
+        column: spot.column,
+        row: row as usize,
+    }
 }
 
 fn empty(text: &'static str) -> impl IntoElement {
@@ -289,7 +443,7 @@ impl Render for ShelfView {
         let drawer = self.drawer(cx);
 
         div()
-            .key_context("Shelf")
+            .key_context(keymap::SHELF)
             .track_focus(&self.focus_handle)
             .relative()
             .size_full()
@@ -299,6 +453,12 @@ impl Render for ShelfView {
             .bg(rgb(theme::BACKGROUND))
             .text_color(rgb(theme::INK))
             .on_action(cx.listener(Self::leave))
+            .on_action(cx.listener(Self::left))
+            .on_action(cx.listener(Self::right))
+            .on_action(cx.listener(Self::up))
+            .on_action(cx.listener(Self::down))
+            .on_action(cx.listener(Self::activate))
+            .on_action(cx.listener(Self::drawer_toggled))
             .child(
                 // The way back, named for the room it leads to — the same
                 // quiet corner control the editor rooms use.
@@ -356,3 +516,52 @@ impl Render for ShelfView {
 /// Wider than the writing measure: three columns of short lines, not a column
 /// of prose.
 const SHELF_MEASURE: f32 = 960.;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn spot(column: usize, row: usize) -> Option<Spot> {
+        Some(Spot { column, row })
+    }
+
+    #[test]
+    fn the_highlight_starts_on_the_first_card_worth_pressing() {
+        // A free slot: the sparks are startable, so the first one it is.
+        assert_eq!(first_spot([3, 0, 2], true), spot(SPARKS, 0));
+        // Occupied: the sparks offer nothing, and the essay in progress does.
+        assert_eq!(first_spot([3, 1, 2], false), spot(IN_PROGRESS, 0));
+        // Nothing to act on at all: the first column with anything in it.
+        assert_eq!(first_spot([0, 0, 2], true), spot(PUBLISHED, 0));
+        assert_eq!(first_spot([0, 0, 0], true), None);
+    }
+
+    #[test]
+    fn sideways_steps_skip_the_empty_columns_and_stop_at_the_ends() {
+        let columns = [2, 0, 3];
+
+        let start = Spot { column: 0, row: 1 };
+        assert_eq!(step_column(start, columns, 1), Spot { column: 2, row: 1 });
+        assert_eq!(step_column(start, columns, -1), start, "already leftmost");
+
+        let end = Spot { column: 2, row: 2 };
+        assert_eq!(step_column(end, columns, 1), end, "already rightmost");
+        assert_eq!(
+            step_column(end, columns, -1),
+            Spot { column: 0, row: 1 },
+            "a short column clamps the row"
+        );
+    }
+
+    #[test]
+    fn stepping_along_a_column_stops_at_its_ends() {
+        let columns = [3, 1, 0];
+
+        let top = Spot { column: 0, row: 0 };
+        assert_eq!(step_row(top, columns, -1), top);
+        assert_eq!(step_row(top, columns, 1), Spot { column: 0, row: 1 });
+
+        let bottom = Spot { column: 0, row: 2 };
+        assert_eq!(step_row(bottom, columns, 1), bottom);
+    }
+}

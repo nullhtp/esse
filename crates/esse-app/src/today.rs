@@ -18,20 +18,22 @@ use std::rc::Rc;
 use chrono::{Local, NaiveDate};
 use esse_core::{Essay, Spark};
 use gpui::{
-    actions, div, prelude::*, px, rgb, App, Context, Entity, EventEmitter, FocusHandle, Focusable,
-    SharedString, Subscription, Window,
+    actions, div, prelude::*, px, rgb, AnyElement, App, Context, Entity, EventEmitter, FocusHandle,
+    Focusable, SharedString, Subscription, Window,
 };
 
 use crate::calendar;
 use crate::data::Data;
 use crate::essay::title;
+use crate::keymap;
 use crate::line_input::{LineInput, Submitted};
 use crate::theme;
 
-// The screen's two moves from the keyboard. Both are bound with a modifier,
-// so that plain typing keeps landing in the capture line (keyboard-shortcuts
-// spec).
-actions!(today, [Write, Shelf]);
+// The screen's two moves from the keyboard. Both are bound with a modifier, so
+// that plain typing keeps landing in the capture line (keyboard-shortcuts
+// spec) — and the four below them are not, because choosing a spark takes the
+// focus off the capture line for as long as it lasts (design.md, D5).
+actions!(today, [Write, Shelf, Previous, Next, Choose, Cancel]);
 
 /// What the screen asks the router for.
 pub enum TodayEvent {
@@ -54,6 +56,12 @@ pub struct TodayView {
     input: Entity<LineInput>,
     /// The list is waiting for a spark to be chosen.
     picking: bool,
+    /// Which spark the choice is on, while one is being chosen. An index into
+    /// `sparks`, which is newest first — so it starts at the newest.
+    highlight: usize,
+    /// Focus while choosing. The capture line gives it up for as long as the
+    /// choice is open and takes it back on the way out (start-from-spark spec).
+    choice_focus: FocusHandle,
     /// The app is still empty enough to be asking for a boxful of sparks.
     asking: bool,
     /// What the router had to say — an empty spark box, a refused start.
@@ -78,6 +86,8 @@ impl TodayView {
             days_written: HashSet::new(),
             input,
             picking: false,
+            highlight: 0,
+            choice_focus: cx.focus_handle(),
             asking: false,
             notice: None,
             trouble: None,
@@ -90,26 +100,47 @@ impl TodayView {
     /// Re-read the disk. Called when coming back from Write mode, where a
     /// spark may have been consumed (spark-capture spec), a session recorded,
     /// and an essay published.
-    pub fn refresh(&mut self, cx: &mut Context<Self>) {
-        self.picking = false;
+    pub fn refresh(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.stop_choosing(window, cx);
         self.notice = None;
         self.reload();
         cx.notify();
     }
 
-    /// The slot is free and there are sparks: let the writer choose one.
-    pub fn offer_sparks(&mut self, cx: &mut Context<Self>) {
+    /// The slot is free and there are sparks: let the writer choose one. The
+    /// choice takes focus, so the arrows and Enter mean the list rather than
+    /// the capture line, and the newest spark is the one under the highlight.
+    pub fn offer_sparks(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.picking = true;
+        self.highlight = 0;
         self.notice = None;
+        window.focus(&self.choice_focus, cx);
         cx.notify();
     }
 
+    /// Whether a spark is being chosen — which is a different room to be told
+    /// the shortcuts of (shortcut-help spec).
+    pub fn is_choosing(&self) -> bool {
+        self.picking
+    }
+
     /// Something the writer has to know — no sparks to start from, or a start
-    /// the storage layer refused.
-    pub fn say(&mut self, notice: impl Into<String>, cx: &mut Context<Self>) {
-        self.picking = false;
+    /// the storage layer refused. Whatever it says, the choice is over and the
+    /// capture line has the keys back.
+    pub fn say(&mut self, notice: impl Into<String>, window: &mut Window, cx: &mut Context<Self>) {
+        self.stop_choosing(window, cx);
         self.notice = Some(notice.into());
         cx.notify();
+    }
+
+    /// Leave the choosing state, whatever ended it. The capture line takes the
+    /// keys back the moment the choice is gone, so no keystroke ever falls
+    /// through to a list that is no longer on screen.
+    fn stop_choosing(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.picking {
+            self.picking = false;
+            window.focus(&self.input.read(cx).focus_handle(cx), cx);
+        }
     }
 
     fn reload(&mut self) {
@@ -203,6 +234,31 @@ impl TodayView {
         cx.emit(TodayEvent::Shelf);
     }
 
+    // -- choosing a spark --------------------------------------------------
+
+    fn previous(&mut self, _: &Previous, _: &mut Window, cx: &mut Context<Self>) {
+        self.highlight = self.highlight.saturating_sub(1);
+        cx.notify();
+    }
+
+    fn next(&mut self, _: &Next, _: &mut Window, cx: &mut Context<Self>) {
+        self.highlight = (self.highlight + 1).min(self.sparks.len().saturating_sub(1));
+        cx.notify();
+    }
+
+    /// Enter starts from the highlighted spark through the very event a click
+    /// on it emits, so the two ways in cannot mean different things.
+    fn choose(&mut self, _: &Choose, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(spark) = self.sparks.get(self.highlight) {
+            cx.emit(TodayEvent::Start(spark.id.clone()));
+        }
+    }
+
+    fn cancel(&mut self, _: &Cancel, window: &mut Window, cx: &mut Context<Self>) {
+        self.stop_choosing(window, cx);
+        cx.notify();
+    }
+
     fn write_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .id("write")
@@ -261,7 +317,7 @@ impl TodayView {
         )
     }
 
-    fn list(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn list(&self, cx: &mut Context<Self>) -> AnyElement {
         let mut list = div()
             .id("sparks")
             .flex_1()
@@ -286,7 +342,8 @@ impl TodayView {
         }
 
         let picking = self.picking;
-        list.children(self.sparks.iter().map(|spark| {
+        let highlight = self.highlight;
+        let list = list.children(self.sparks.iter().enumerate().map(|(index, spark)| {
             let id = spark.id.clone();
             let row = div()
                 .id(SharedString::from(spark.id.clone()))
@@ -296,6 +353,7 @@ impl TodayView {
                 row.px(px(8.))
                     .ml(px(-8.))
                     .rounded(px(5.))
+                    .when(index == highlight, |row| row.bg(rgb(theme::HIGHLIGHT)))
                     .cursor_pointer()
                     .hover(|style| style.bg(rgb(theme::HIGHLIGHT)))
                     .on_click(
@@ -304,7 +362,16 @@ impl TodayView {
             } else {
                 row
             }
-        }))
+        }));
+
+        // The list only takes focus while there is a choice to make: at rest
+        // the capture line owns the screen's keys, and a click anywhere must
+        // not take them off it (today-screen spec).
+        if picking {
+            list.track_focus(&self.choice_focus).into_any_element()
+        } else {
+            list.into_any_element()
+        }
     }
 
     // -- what the writing has come to -------------------------------------
@@ -403,9 +470,14 @@ const ENOUGH_SPARKS: usize = 3;
 
 impl Focusable for TodayView {
     /// The screen's focus is the capture line: there is nothing else to type
-    /// into, so launching the app is already being ready to write.
+    /// into, so launching the app is already being ready to write. The one
+    /// exception is the spark choice, which borrows it while it is open.
     fn focus_handle(&self, cx: &App) -> FocusHandle {
-        self.input.read(cx).focus_handle(cx)
+        if self.picking {
+            self.choice_focus.clone()
+        } else {
+            self.input.read(cx).focus_handle(cx)
+        }
     }
 }
 
@@ -418,7 +490,14 @@ impl Render for TodayView {
         let showcase = self.showcase();
 
         div()
-            .key_context("Today")
+            // Choosing a spark is a room of its own, entered by one action and
+            // left by one key — which is what makes the bare arrows and Enter
+            // safe there and nowhere else on Today (design.md, D5).
+            .key_context(if self.picking {
+                keymap::CHOOSING
+            } else {
+                keymap::TODAY
+            })
             .relative()
             .size_full()
             .flex()
@@ -428,6 +507,10 @@ impl Render for TodayView {
             .text_color(rgb(theme::INK))
             .on_action(cx.listener(Self::write))
             .on_action(cx.listener(Self::shelf))
+            .on_action(cx.listener(Self::previous))
+            .on_action(cx.listener(Self::next))
+            .on_action(cx.listener(Self::choose))
+            .on_action(cx.listener(Self::cancel))
             .child(shelf)
             .child(
                 div()

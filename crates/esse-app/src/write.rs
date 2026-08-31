@@ -188,7 +188,7 @@ impl Render for WriteView {
         let (elapsed, colour) = self.indicator();
 
         div()
-            .key_context("Write")
+            .key_context(crate::keymap::WRITE)
             .relative()
             .size_full()
             .bg(rgb(theme::write::BACKGROUND))
