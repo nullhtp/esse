@@ -24,6 +24,7 @@ use super::display::DisplayLine;
 use super::viewport::{clamp_shift, shift_into_view, Scroll, Viewport};
 use super::wrap::VisualLine;
 use super::{line_font_size, EditorStyle, EditorView};
+use crate::fonts;
 use crate::theme;
 
 /// One paragraph, shaped and placed.
@@ -630,8 +631,14 @@ fn build_runs(
         .filter(|(range, _, _)| range.start < range.end)
         .map(|(range, emphasis, marker)| {
             let mut font = text_style.font();
-            font.weight = if emphasis.bold || heading {
-                FontWeight::BOLD
+            // A heading is a heading by its size; the weight only has to stop
+            // it reading as a paragraph, and at these sizes a serif needs very
+            // little for that. `**bold**` is a step further, so a bold word
+            // inside a heading is still visible as one (fonts.rs).
+            font.weight = if emphasis.bold {
+                fonts::STRONG
+            } else if heading {
+                fonts::MEDIUM
             } else {
                 FontWeight::NORMAL
             };

@@ -13,6 +13,7 @@ use gpui::{
     actions, div, prelude::*, px, rgb, rgba, App, FocusHandle, KeyDownEvent, SharedString, Window,
 };
 
+use crate::fonts;
 use crate::keymap::{self, Place};
 use crate::theme;
 
@@ -53,8 +54,9 @@ pub fn overlay(
             div()
                 .w(px(CARD_WIDTH))
                 .max_w_full()
-                .p(px(26.))
-                .rounded(px(10.))
+                .px(px(theme::SPACE_XL - 4.))
+                .py(px(theme::SPACE_XL - 6.))
+                .rounded(px(theme::RADIUS_PANEL))
                 .bg(rgb(theme::BACKGROUND))
                 .border_1()
                 .border_color(rgb(theme::RULE))
@@ -64,12 +66,13 @@ pub fn overlay(
                 .child(
                     div()
                         .w_full()
-                        .pb(px(6.))
-                        .text_size(px(theme::SMALL_SIZE))
+                        .pb(px(theme::SPACE_S))
+                        .text_size(px(theme::LABEL_SIZE))
+                        .font_weight(fonts::MEDIUM)
                         .text_color(rgb(theme::MUTED))
-                        .child(place.title()),
+                        .child(theme::label(place.title())),
                 )
-                .child(div().w_full().pb(px(12.)).child(method.lead))
+                .child(div().w_full().pb(px(theme::SPACE_M)).child(method.lead))
                 .children(steps(method.steps)),
         )
 }
@@ -85,7 +88,7 @@ fn steps(steps: &'static [&'static str]) -> Vec<impl IntoElement> {
         .map(|(index, step)| {
             div()
                 .w_full()
-                .py(px(5.))
+                .py(px(theme::SPACE_XS))
                 .child(SharedString::from(format!("{}. {step}", index + 1)))
         })
         .collect()

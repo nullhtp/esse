@@ -18,6 +18,7 @@ use gpui::{
 use crate::autosave::Autosave;
 use crate::data::Data;
 use crate::editor::{EditorStyle, EditorView, Edited, Viewport};
+use crate::fonts;
 use crate::theme;
 
 actions!(write, [Leave, Switch]);
@@ -201,20 +202,23 @@ impl Render for WriteView {
                 div()
                     .id("switch")
                     .absolute()
-                    .top(px(18.))
-                    .right(px(22.))
-                    .text_size(px(theme::SMALL_SIZE))
+                    .top(px(theme::CORNER_TOP))
+                    .right(px(theme::CORNER_SIDE))
+                    .text_size(px(theme::LABEL_SIZE))
+                    .font_weight(fonts::MEDIUM)
                     .text_color(rgb(theme::write::SWITCH))
                     .cursor_pointer()
                     .hover(|style| style.text_color(rgb(theme::write::SWITCH_HOVER)))
                     .on_click(cx.listener(|_, _, _, cx| cx.emit(WriteEvent::Switch)))
-                    .child("Editing"),
+                    .child(theme::label("Editing")),
             )
             .child(
                 div()
                     .absolute()
-                    .bottom(px(18.))
-                    .right(px(22.))
+                    .bottom(px(theme::CORNER_TOP))
+                    .right(px(theme::CORNER_SIDE))
+                    // A fact rather than a label: the corner opposite names a
+                    // room, this one only counts, so it stays in plain text.
                     .text_size(px(theme::SMALL_SIZE))
                     .text_color(rgb(colour))
                     .child(elapsed),
@@ -222,8 +226,8 @@ impl Render for WriteView {
             .children(self.autosave.trouble().map(|text| {
                 div()
                     .absolute()
-                    .bottom(px(18.))
-                    .left(px(22.))
+                    .bottom(px(theme::CORNER_TOP))
+                    .left(px(theme::CORNER_SIDE))
                     .text_size(px(theme::SMALL_SIZE))
                     .text_color(rgb(theme::ALARM))
                     .child(text.to_string())

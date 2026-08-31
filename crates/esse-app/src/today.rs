@@ -25,6 +25,7 @@ use gpui::{
 use crate::calendar;
 use crate::data::Data;
 use crate::essay::title;
+use crate::fonts;
 use crate::keymap;
 use crate::line_input::{LineInput, Submitted};
 use crate::theme;
@@ -266,11 +267,12 @@ impl TodayView {
             .items_center()
             .justify_center()
             .w_full()
-            .h(px(60.))
-            .rounded(px(8.))
+            .h(px(56.))
+            .rounded(px(theme::RADIUS))
             .bg(rgb(theme::INK))
             .text_color(rgb(theme::BACKGROUND))
-            .text_size(px(21.))
+            .text_size(px(theme::LEAD_SIZE))
+            .font_weight(fonts::MEDIUM)
             .cursor_pointer()
             .hover(|style| style.bg(rgb(theme::INK_HOVER)))
             .on_click(cx.listener(|_, _, _, cx| cx.emit(TodayEvent::Write)))
@@ -284,14 +286,15 @@ impl TodayView {
         div()
             .id("shelf")
             .absolute()
-            .top(px(18.))
-            .right(px(22.))
-            .text_size(px(theme::SMALL_SIZE))
+            .top(px(theme::CORNER_TOP))
+            .right(px(theme::CORNER_SIDE))
+            .text_size(px(theme::LABEL_SIZE))
+            .font_weight(fonts::MEDIUM)
             .text_color(rgb(theme::MUTED))
             .cursor_pointer()
             .hover(|style| style.text_color(rgb(theme::INK)))
             .on_click(cx.listener(|_, _, _, cx| cx.emit(TodayEvent::Shelf)))
-            .child("Shelf")
+            .child(theme::label("Shelf"))
     }
 
     /// The whole of the onboarding: two quiet lines under the capture line,
@@ -305,8 +308,9 @@ impl TodayView {
 
         Some(
             div()
-                .pt(px(12.))
+                .pt(px(theme::SPACE_M))
                 .text_size(px(theme::SMALL_SIZE))
+                .line_height(px(theme::SMALL_SIZE * theme::LINE_SPACING))
                 .text_color(rgb(theme::MUTED))
                 .child(if self.sparks.is_empty() {
                     "Ideas arrive every day and get lost. Write down three to five \
@@ -325,17 +329,18 @@ impl TodayView {
             // off the screen; what does not fit scrolls.
             .min_h(px(0.))
             .overflow_y_scroll()
-            .pt(px(20.))
+            .pt(px(theme::SPACE_L))
             .flex()
             .flex_col()
-            .text_size(px(theme::BODY_SIZE));
+            .text_size(px(theme::BODY_SIZE))
+            .line_height(px(theme::BODY_SIZE * theme::LINE_SPACING));
 
         // The ask, when it is up, already says what an empty box means; the
         // screen does not say it twice.
         if self.sparks.is_empty() && !self.asking {
             list = list.child(
                 div()
-                    .pt(px(8.))
+                    .pt(px(theme::SPACE_S))
                     .text_color(rgb(theme::MUTED))
                     .child("Empty for now. The first thought that comes will be the first spark."),
             );
@@ -347,12 +352,12 @@ impl TodayView {
             let id = spark.id.clone();
             let row = div()
                 .id(SharedString::from(spark.id.clone()))
-                .py(px(9.))
+                .py(px(theme::SPACE_S))
                 .child(SharedString::from(spark.text.clone()));
             if picking {
-                row.px(px(8.))
-                    .ml(px(-8.))
-                    .rounded(px(5.))
+                row.px(px(theme::SPACE_S))
+                    .ml(px(-theme::SPACE_S))
+                    .rounded(px(theme::RADIUS))
                     .when(index == highlight, |row| row.bg(rgb(theme::HIGHLIGHT)))
                     .cursor_pointer()
                     .hover(|style| style.bg(rgb(theme::HIGHLIGHT)))
@@ -390,8 +395,7 @@ impl TodayView {
         Some(
             div()
                 .flex_none()
-                .mt(px(24.))
-                .pt(px(4.))
+                .mt(px(theme::SPACE_L))
                 .border_t_1()
                 .border_color(rgb(theme::RULE))
                 .children(published)
@@ -410,24 +414,26 @@ impl TodayView {
         Some(
             div()
                 .id("published")
-                .pt(px(18.))
+                .pt(px(theme::SPACE_L))
                 .flex()
-                .gap(px(10.))
+                .gap(px(theme::SPACE_S))
                 .overflow_x_scroll()
                 .children(self.published.iter().map(|essay| {
                     div()
                         .flex_none()
                         .w(px(CARD_WIDTH))
-                        .p(px(10.))
-                        .rounded(px(6.))
+                        .px(px(theme::SPACE_M))
+                        .py(px(theme::SPACE_S + 2.))
+                        .rounded(px(theme::RADIUS))
                         .border_1()
                         .border_color(rgb(theme::RULE))
                         .text_size(px(theme::SMALL_SIZE))
                         .child(div().truncate().child(SharedString::from(title(essay))))
                         .children(essay.publication_url.clone().map(|url| {
                             div()
-                                .pt(px(4.))
+                                .pt(px(theme::SPACE_XS - 2.))
                                 .truncate()
+                                .text_size(px(theme::LABEL_SIZE))
                                 .text_color(rgb(theme::MUTED))
                                 .child(SharedString::from(url))
                         }))
@@ -444,11 +450,11 @@ impl TodayView {
 
         Some(
             div()
-                .pt(px(20.))
+                .pt(px(theme::SPACE_L))
                 .pb(px(2.))
                 .flex()
                 .items_center()
-                .gap(px(6.))
+                .gap(px(theme::SPACE_XS))
                 .children(strip.into_iter().map(|written| {
                     div().size(px(5.)).rounded(px(2.5)).bg(rgb(if written {
                         theme::MUTED
@@ -462,7 +468,7 @@ impl TodayView {
 
 /// A published card: wide enough for a few words of a title, narrow enough
 /// that the row reads as a shelf of finished things rather than a list.
-const CARD_WIDTH: f32 = 172.;
+const CARD_WIDTH: f32 = 176.;
 
 /// A boxful — the number of sparks the first launch asks for, and the point
 /// at which it stops asking. One spark is not yet something to choose from.
@@ -525,22 +531,22 @@ impl Render for TodayView {
                     .child(button)
                     .children(self.picking.then(|| {
                         div()
-                            .pt(px(14.))
+                            .pt(px(theme::SPACE_M))
                             .text_size(px(theme::SMALL_SIZE))
                             .text_color(rgb(theme::MUTED))
-                            .child("Which spark to start from? Pick one in the list.")
+                            .child("Which spark to start from? Pick one from the list.")
                     }))
                     .children(self.notice.clone().map(|text| {
                         div()
-                            .pt(px(14.))
+                            .pt(px(theme::SPACE_M))
                             .text_size(px(theme::SMALL_SIZE))
                             .text_color(rgb(theme::MUTED))
                             .child(text)
                     }))
-                    .child(div().pt(px(28.)).child(self.input.clone()))
+                    .child(div().pt(px(theme::SPACE_XL)).child(self.input.clone()))
                     .children(self.trouble.clone().map(|text| {
                         div()
-                            .pt(px(10.))
+                            .pt(px(theme::SPACE_S))
                             .text_size(px(theme::SMALL_SIZE))
                             .text_color(rgb(theme::ALARM))
                             .child(text)

@@ -12,6 +12,7 @@ use gpui::{
     actions, div, prelude::*, px, rgb, rgba, App, FocusHandle, KeyDownEvent, SharedString, Window,
 };
 
+use crate::fonts;
 use crate::keymap::{self, Place, Shortcut};
 use crate::theme;
 
@@ -41,17 +42,18 @@ pub fn overlay(
         .bg(rgba(VEIL))
         .child(
             div()
-                .w(px(420.))
+                .w(px(400.))
                 .max_w_full()
-                .p(px(26.))
-                .rounded(px(10.))
+                .px(px(theme::SPACE_XL - 4.))
+                .py(px(theme::SPACE_XL - 6.))
+                .rounded(px(theme::RADIUS_PANEL))
                 .bg(rgb(theme::BACKGROUND))
                 .border_1()
                 .border_color(rgb(theme::RULE))
                 .text_color(rgb(theme::INK))
                 .child(heading(place.title()))
                 .children(rows(keymap::shortcuts(place)))
-                .child(div().pt(px(18.)).child(heading("Everywhere")))
+                .child(div().pt(px(theme::SPACE_L)).child(heading("Everywhere")))
                 .children(rows(keymap::everywhere())),
         )
 }
@@ -60,10 +62,11 @@ pub fn overlay(
 /// app.
 fn heading(text: &'static str) -> impl IntoElement {
     div()
-        .pb(px(8.))
-        .text_size(px(theme::SMALL_SIZE))
+        .pb(px(theme::SPACE_S))
+        .text_size(px(theme::LABEL_SIZE))
+        .font_weight(fonts::MEDIUM)
         .text_color(rgb(theme::MUTED))
-        .child(text)
+        .child(theme::label(text))
 }
 
 /// The rows, with the keys that do the same thing gathered onto one line —
@@ -87,8 +90,8 @@ fn rows<'a>(shortcuts: impl Iterator<Item = &'a Shortcut>) -> Vec<impl IntoEleme
             div()
                 .flex()
                 .items_baseline()
-                .gap(px(14.))
-                .py(px(4.))
+                .gap(px(theme::SPACE_M))
+                .py(px(theme::SPACE_XS - 1.))
                 .text_size(px(theme::BODY_SIZE))
                 .child(
                     div()

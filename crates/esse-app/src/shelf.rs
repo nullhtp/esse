@@ -21,6 +21,7 @@ use gpui::{
 
 use crate::data::Data;
 use crate::essay::title;
+use crate::fonts;
 use crate::keymap;
 use crate::theme;
 
@@ -260,7 +261,7 @@ impl ShelfView {
                     .child(SharedString::from(title(essay)))
                     .child(
                         div()
-                            .pt(px(3.))
+                            .pt(px(theme::SPACE_XS - 2.))
                             .text_size(px(theme::SMALL_SIZE))
                             .text_color(rgb(theme::MUTED))
                             .child(match essay.status() {
@@ -290,8 +291,8 @@ impl ShelfView {
                             .child(SharedString::from(title(essay)))
                             .children(essay.publication_url.clone().map(|url| {
                                 div()
-                                    .pt(px(3.))
-                                    .text_size(px(theme::SMALL_SIZE))
+                                    .pt(px(theme::SPACE_XS - 2.))
+                                    .text_size(px(theme::LABEL_SIZE))
                                     .text_color(rgb(theme::MUTED))
                                     .child(SharedString::from(url))
                             }))
@@ -305,7 +306,7 @@ impl ShelfView {
         let marker = if self.drawer_open { "﹀" } else { "›" };
 
         div()
-            .pt(px(22.))
+            .pt(px(theme::SPACE_L))
             .border_t_1()
             .border_color(rgb(theme::RULE))
             .child(
@@ -325,7 +326,7 @@ impl ShelfView {
                     .id("shelved")
                     .max_h(px(160.))
                     .overflow_y_scroll()
-                    .pt(px(8.))
+                    .pt(px(theme::SPACE_S))
                     .text_size(px(theme::BODY_SIZE))
                     .text_color(rgb(theme::MUTED))
                     .children(self.contents.shelved.is_empty().then(|| empty("Nothing shelved")))
@@ -348,13 +349,14 @@ fn column(id: &'static str, heading: &'static str) -> gpui::Stateful<gpui::Div> 
         .flex_col()
         .child(
             div()
-                .pb(px(8.))
-                .mb(px(10.))
+                .pb(px(theme::SPACE_S))
+                .mb(px(theme::SPACE_M))
                 .border_b_1()
                 .border_color(rgb(theme::RULE))
-                .text_size(px(theme::SMALL_SIZE))
+                .text_size(px(theme::LABEL_SIZE))
+                .font_weight(fonts::MEDIUM)
                 .text_color(rgb(theme::MUTED))
-                .child(heading),
+                .child(theme::label(heading)),
         )
 }
 
@@ -362,11 +364,12 @@ fn column(id: &'static str, heading: &'static str) -> gpui::Stateful<gpui::Div> 
 fn row(id: String, highlighted: bool) -> gpui::Stateful<gpui::Div> {
     div()
         .id(SharedString::from(id))
-        .py(px(9.))
-        .px(px(8.))
-        .ml(px(-8.))
-        .rounded(px(5.))
+        .py(px(theme::SPACE_S))
+        .px(px(theme::SPACE_S))
+        .ml(px(-theme::SPACE_S))
+        .rounded(px(theme::RADIUS))
         .text_size(px(theme::BODY_SIZE))
+        .line_height(px(theme::BODY_SIZE * theme::LINE_SPACING))
         .when(highlighted, |row| row.bg(rgb(theme::HIGHLIGHT)))
 }
 
@@ -429,8 +432,9 @@ fn step_row(spot: Spot, columns: [usize; COLUMNS], delta: isize) -> Spot {
 
 fn empty(text: &'static str) -> impl IntoElement {
     div()
-        .py(px(9.))
+        .py(px(theme::SPACE_S))
         .text_size(px(theme::BODY_SIZE))
+        .line_height(px(theme::BODY_SIZE * theme::LINE_SPACING))
         .text_color(rgb(theme::MUTED))
         .child(text)
 }
@@ -475,14 +479,15 @@ impl Render for ShelfView {
                 div()
                     .id("today")
                     .absolute()
-                    .top(px(18.))
-                    .right(px(22.))
-                    .text_size(px(theme::SMALL_SIZE))
+                    .top(px(theme::CORNER_TOP))
+                    .right(px(theme::CORNER_SIDE))
+                    .text_size(px(theme::LABEL_SIZE))
+                    .font_weight(fonts::MEDIUM)
                     .text_color(rgb(theme::MUTED))
                     .cursor_pointer()
                     .hover(|style| style.text_color(rgb(theme::INK)))
                     .on_click(cx.listener(|_, _, _, cx| cx.emit(ShelfEvent::Left)))
-                    .child("Today"),
+                    .child(theme::label("Today")),
             )
             .child(
                 div()
@@ -496,14 +501,14 @@ impl Render for ShelfView {
                     .pb(px(theme::PAGE_PADDING))
                     .children(self.notice.clone().map(|text| {
                         div()
-                            .pb(px(14.))
+                            .pb(px(theme::SPACE_M))
                             .text_size(px(theme::SMALL_SIZE))
                             .text_color(rgb(theme::MUTED))
                             .child(text)
                     }))
                     .children(self.trouble.clone().map(|text| {
                         div()
-                            .pb(px(14.))
+                            .pb(px(theme::SPACE_M))
                             .text_size(px(theme::SMALL_SIZE))
                             .text_color(rgb(theme::ALARM))
                             .child(text)
@@ -513,7 +518,7 @@ impl Render for ShelfView {
                             .flex()
                             .flex_1()
                             .min_h(px(0.))
-                            .gap(px(26.))
+                            .gap(px(theme::SPACE_XL))
                             .child(sparks)
                             .child(in_progress)
                             .child(published),
@@ -530,7 +535,7 @@ impl Render for ShelfView {
 fn folder_line(path: &Path, cx: &mut Context<ShelfView>) -> impl IntoElement {
     div()
         .id("folder")
-        .pt(px(14.))
+        .pt(px(theme::SPACE_M))
         .text_size(px(theme::SMALL_SIZE))
         .text_color(rgb(theme::MUTED))
         .cursor_pointer()

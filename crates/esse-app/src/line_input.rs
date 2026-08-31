@@ -13,8 +13,9 @@ use std::ops::Range;
 use gpui::{
     actions, div, fill, point, prelude::*, px, relative, rgb, size, App, Bounds, Context,
     CursorStyle, Element, ElementId, ElementInputHandler, Entity, EntityInputHandler, EventEmitter,
-    FocusHandle, Focusable, GlobalElementId, InspectorElementId, LayoutId, PaintQuad, Pixels,
-    ShapedLine, SharedString, Style, TextAlign, TextRun, UTF16Selection, UnderlineStyle, Window,
+    FocusHandle, Focusable, FontStyle, GlobalElementId, InspectorElementId, LayoutId, PaintQuad,
+    Pixels, ShapedLine, SharedString, Style, TextAlign, TextRun, UTF16Selection, UnderlineStyle,
+    Window,
 };
 
 use crate::theme;
@@ -402,7 +403,7 @@ impl Render for LineInput {
             .track_focus(&self.focus_handle(cx))
             .cursor(CursorStyle::IBeam)
             .w_full()
-            .pb(px(10.))
+            .pb(px(theme::SPACE_S))
             .border_b_1()
             .border_color(rgb(theme::RULE))
             .on_action(cx.listener(Self::submit))
@@ -476,9 +477,14 @@ impl Element for LineInputElement {
         cx: &mut App,
     ) -> Self::PrepaintState {
         let input = self.input.read(cx);
-        let font = window.text_style().font();
+        let mut font = window.text_style().font();
         let font_size = px(theme::INPUT_SIZE);
         let placeholder = input.line.text.is_empty();
+        // The prompt is set in italic, so an empty line reads as an invitation
+        // rather than as a spark someone already captured.
+        if placeholder {
+            font.style = FontStyle::Italic;
+        }
 
         let text: SharedString = if placeholder {
             input.placeholder.clone()

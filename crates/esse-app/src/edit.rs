@@ -26,6 +26,7 @@ use gpui::{
 use crate::autosave::Autosave;
 use crate::data::Data;
 use crate::editor::{Edited, EditorStyle, EditorView, Viewport};
+use crate::fonts;
 use crate::keymap;
 use crate::line_input::LineInput;
 use crate::theme;
@@ -376,10 +377,11 @@ impl EditView {
             .bg(rgba(theme::edit::VEIL))
             .child(
                 div()
-                    .w(px(420.))
+                    .w(px(400.))
                     .max_w_full()
-                    .p(px(26.))
-                    .rounded(px(10.))
+                    .px(px(theme::SPACE_XL - 4.))
+                    .py(px(theme::SPACE_XL - 6.))
+                    .rounded(px(theme::RADIUS_PANEL))
                     .bg(rgb(theme::edit::PANEL))
                     .border_1()
                     .border_color(rgb(theme::edit::PANEL_BORDER))
@@ -387,9 +389,9 @@ impl EditView {
                     .child(panel)
                     .children(self.note.clone().map(|note| {
                         div()
-                            .pt(px(14.))
+                            .pt(px(theme::SPACE_M))
                             .text_size(px(theme::SMALL_SIZE))
-                            .text_color(rgb(theme::MUTED))
+                            .text_color(rgb(theme::edit::MUTED))
                             .child(note)
                     })),
             )
@@ -399,7 +401,7 @@ impl EditView {
         div()
             .flex()
             .flex_col()
-            .gap(px(10.))
+            .gap(px(theme::SPACE_S))
             .child(title("Is the essay finished?"))
             .child(self.action("publish", "Publish", true, Step::Publish, cx))
             .child(self.action("shelve", "Shelve", false, Step::Shelve, cx))
@@ -414,11 +416,11 @@ impl EditView {
         div()
             .flex()
             .flex_col()
-            .gap(px(10.))
+            .gap(px(theme::SPACE_S))
             .child(title("Publish"))
             .child(self.action("copy", "Copy as markdown", false, Step::Copy, cx))
             .child(self.action("export", "Save to a file…", false, Step::Export, cx))
-            .child(div().pt(px(6.)).child(self.link.clone()))
+            .child(div().pt(px(theme::SPACE_XS)).child(self.link.clone()))
             .child(self.action("published", "Published", true, Step::Published, cx))
             .child(self.cancel("back", "Back", Step::Back, cx))
     }
@@ -429,13 +431,14 @@ impl EditView {
         div()
             .flex()
             .flex_col()
-            .gap(px(10.))
+            .gap(px(theme::SPACE_S))
             .child(title("Shelve this essay?"))
             .child(
                 div()
-                    .pb(px(4.))
+                    .pb(px(theme::SPACE_XS))
                     .text_size(px(theme::SMALL_SIZE))
-                    .text_color(rgb(theme::MUTED))
+                    .line_height(px(theme::SMALL_SIZE * theme::LINE_SPACING))
+                    .text_color(rgb(theme::edit::MUTED))
                     .child("The essay stays on the shelf, but it cannot come back into work."),
             )
             .child(self.action("shelve-confirm", "Yes, shelve it", true, Step::Confirm, cx))
@@ -459,8 +462,8 @@ impl EditView {
             .items_center()
             .justify_center()
             .w_full()
-            .py(px(11.))
-            .rounded(px(7.))
+            .py(px(12.))
+            .rounded(px(theme::RADIUS))
             .text_size(px(theme::BODY_SIZE))
             .cursor_pointer()
             .child(label)
@@ -470,12 +473,13 @@ impl EditView {
         if confirming {
             button
                 .bg(rgb(if here {
-                    theme::INK_HOVER
+                    theme::edit::BUTTON_HOVER
                 } else {
-                    theme::INK
+                    theme::edit::BUTTON
                 }))
-                .text_color(rgb(theme::BACKGROUND))
-                .hover(|style| style.bg(rgb(theme::INK_HOVER)))
+                .text_color(rgb(theme::edit::BUTTON_INK))
+                .font_weight(fonts::MEDIUM)
+                .hover(|style| style.bg(rgb(theme::edit::BUTTON_HOVER)))
         } else {
             button
                 .bg(rgb(if here {
@@ -497,12 +501,12 @@ impl EditView {
     ) -> gpui::Stateful<gpui::Div> {
         div()
             .id(id)
-            .pt(px(4.))
+            .pt(px(theme::SPACE_XS))
             .text_size(px(theme::SMALL_SIZE))
             .text_color(rgb(if self.is_on(step) {
                 theme::edit::INK
             } else {
-                theme::MUTED
+                theme::edit::MUTED
             }))
             .cursor_pointer()
             .hover(|style| style.text_color(rgb(theme::edit::INK)))
@@ -511,11 +515,14 @@ impl EditView {
     }
 }
 
+/// The panel's question, and the panel's whole voice. It is the one thing being
+/// asked, so it is asked at reading size rather than whispered in a label —
+/// deciding an essay is finished deserves a sentence, not a caption.
 fn title(text: &'static str) -> impl IntoElement {
     div()
-        .pb(px(6.))
-        .text_size(px(theme::SMALL_SIZE))
-        .text_color(rgb(theme::MUTED))
+        .pb(px(theme::SPACE_M))
+        .text_size(px(theme::LEAD_SIZE))
+        .text_color(rgb(theme::edit::INK))
         .child(text)
 }
 
@@ -553,11 +560,12 @@ impl Render for EditView {
                 // D3, D2).
                 div()
                     .absolute()
-                    .top(px(18.))
-                    .right(px(22.))
+                    .top(px(theme::CORNER_TOP))
+                    .right(px(theme::CORNER_SIDE))
                     .flex()
-                    .gap(px(20.))
-                    .text_size(px(theme::SMALL_SIZE))
+                    .gap(px(theme::SPACE_L))
+                    .text_size(px(theme::LABEL_SIZE))
+                    .font_weight(fonts::MEDIUM)
                     .text_color(rgb(theme::edit::SWITCH))
                     .child(
                         div()
@@ -567,7 +575,7 @@ impl Render for EditView {
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.show(Stage::Choosing, window, cx)
                             }))
-                            .child("Finish"),
+                            .child(theme::label("Finish")),
                     )
                     .child(
                         div()
@@ -575,7 +583,7 @@ impl Render for EditView {
                             .cursor_pointer()
                             .hover(|style| style.text_color(rgb(theme::edit::SWITCH_HOVER)))
                             .on_click(cx.listener(|_, _, _, cx| cx.emit(EditEvent::Switch)))
-                            .child("Writing"),
+                            .child(theme::label("Writing")),
                     ),
             )
             .children(self.autosave.trouble().map(|text| {
