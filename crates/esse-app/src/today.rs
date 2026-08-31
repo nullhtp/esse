@@ -18,7 +18,7 @@ use std::rc::Rc;
 use chrono::{Local, NaiveDate};
 use esse_core::{Essay, Spark};
 use gpui::{
-    div, prelude::*, px, rgb, App, Context, Entity, EventEmitter, FocusHandle, Focusable,
+    actions, div, prelude::*, px, rgb, App, Context, Entity, EventEmitter, FocusHandle, Focusable,
     SharedString, Subscription, Window,
 };
 
@@ -27,6 +27,11 @@ use crate::data::Data;
 use crate::essay::title;
 use crate::line_input::{LineInput, Submitted};
 use crate::theme;
+
+// The screen's two moves from the keyboard. Both are bound with a modifier,
+// so that plain typing keeps landing in the capture line (keyboard-shortcuts
+// spec).
+actions!(today, [Write, Shelf]);
 
 /// What the screen asks the router for.
 pub enum TodayEvent {
@@ -49,6 +54,8 @@ pub struct TodayView {
     input: Entity<LineInput>,
     /// The list is waiting for a spark to be chosen.
     picking: bool,
+    /// The app is still empty enough to be asking for a boxful of sparks.
+    asking: bool,
     /// What the router had to say — an empty spark box, a refused start.
     notice: Option<String>,
     /// Shown when the disk refuses; the app's memory is worth complaining
@@ -71,6 +78,7 @@ impl TodayView {
             days_written: HashSet::new(),
             input,
             picking: false,
+            asking: false,
             notice: None,
             trouble: None,
             _submitted: submitted,
@@ -134,6 +142,26 @@ impl TodayView {
                 log::error!("could not read the session history: {error}");
                 HashSet::new()
             });
+
+        self.asking = self.asking_for_sparks();
+    }
+
+    /// Whether the app is still empty enough to ask for sparks: fewer than a
+    /// boxful captured and nothing written yet, in any state. Computed from
+    /// the disk every time rather than remembered — there is no onboarding
+    /// flag anywhere (first-run-onboarding spec, design.md D1).
+    ///
+    /// Past a boxful of sparks the answer is already no, and the essays are
+    /// not read to confirm it. A disk that refuses to answer is not an empty
+    /// app, so the ask stays away.
+    fn asking_for_sparks(&self) -> bool {
+        self.sparks.len() < ENOUGH_SPARKS
+            && self
+                .data
+                .essays
+                .load_all()
+                .inspect_err(|error| log::error!("could not read the essays: {error}"))
+                .is_ok_and(|essays| essays.is_empty())
     }
 
     fn on_submitted(
@@ -150,6 +178,8 @@ impl TodayView {
                 self.trouble = None;
                 // A spark in the box answers "a spark is needed".
                 self.notice = None;
+                // And the boxful being asked for may have just been reached.
+                self.asking = self.asking_for_sparks();
                 input.update(cx, |input, cx| input.clear(cx));
             }
             Err(error) => {
@@ -160,6 +190,17 @@ impl TodayView {
             }
         }
         cx.notify();
+    }
+
+    /// The Write button from the keyboard, and the Shelf from the keyboard:
+    /// each emits the very event its control emits, so a shortcut cannot
+    /// drift into meaning something else (keyboard-shortcuts spec).
+    fn write(&mut self, _: &Write, _: &mut Window, cx: &mut Context<Self>) {
+        cx.emit(TodayEvent::Write);
+    }
+
+    fn shelf(&mut self, _: &Shelf, _: &mut Window, cx: &mut Context<Self>) {
+        cx.emit(TodayEvent::Shelf);
     }
 
     fn write_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -197,6 +238,29 @@ impl TodayView {
             .child("Полка")
     }
 
+    /// The whole of the onboarding: two quiet lines under the capture line,
+    /// asking for a boxful of sparks. Not a modal, not a step, and nothing to
+    /// dismiss — it goes away when the box fills or the writing starts
+    /// (first-run-onboarding spec).
+    fn ask(&self) -> Option<impl IntoElement> {
+        if !self.asking {
+            return None;
+        }
+
+        Some(
+            div()
+                .pt(px(12.))
+                .text_size(px(theme::SMALL_SIZE))
+                .text_color(rgb(theme::MUTED))
+                .child(if self.sparks.is_empty() {
+                    "Идеи приходят каждый день и теряются. Запишите 3–5 прямо \
+                     сейчас — с них и начнётся первое эссе."
+                } else {
+                    "Запишите ещё пару — чтобы было из чего выбрать."
+                }),
+        )
+    }
+
     fn list(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let mut list = div()
             .id("sparks")
@@ -210,7 +274,9 @@ impl TodayView {
             .flex_col()
             .text_size(px(theme::BODY_SIZE));
 
-        if self.sparks.is_empty() {
+        // The ask, when it is up, already says what an empty box means; the
+        // screen does not say it twice.
+        if self.sparks.is_empty() && !self.asking {
             list = list.child(
                 div()
                     .pt(px(8.))
@@ -331,6 +397,10 @@ impl TodayView {
 /// that the row reads as a shelf of finished things rather than a list.
 const CARD_WIDTH: f32 = 172.;
 
+/// A boxful — the number of sparks the first launch asks for, and the point
+/// at which it stops asking. One spark is not yet something to choose from.
+const ENOUGH_SPARKS: usize = 3;
+
 impl Focusable for TodayView {
     /// The screen's focus is the capture line: there is nothing else to type
     /// into, so launching the app is already being ready to write.
@@ -342,6 +412,7 @@ impl Focusable for TodayView {
 impl Render for TodayView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let button = self.write_button(cx);
+        let ask = self.ask();
         let list = self.list(cx);
         let shelf = self.shelf_control(cx);
         let showcase = self.showcase();
@@ -355,6 +426,8 @@ impl Render for TodayView {
             .items_center()
             .bg(rgb(theme::BACKGROUND))
             .text_color(rgb(theme::INK))
+            .on_action(cx.listener(Self::write))
+            .on_action(cx.listener(Self::shelf))
             .child(shelf)
             .child(
                 div()
@@ -389,6 +462,7 @@ impl Render for TodayView {
                             .text_color(rgb(theme::ALARM))
                             .child(text)
                     }))
+                    .children(ask)
                     .child(list)
                     .children(showcase),
             )
