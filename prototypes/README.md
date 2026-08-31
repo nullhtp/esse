@@ -1,76 +1,78 @@
 # prototypes
 
-Одноразовые прототипы для выбора GUI-фреймворка
-(`openspec/changes/editor-framework-prototype`). Код намеренно черновой —
-живёт до записи решения в Decision Record, потом замораживается.
+Throwaway prototypes for choosing the GUI framework
+(`openspec/changes/editor-framework-prototype`). The code is deliberately
+rough — it lives until the decision is written into the Decision Record, and is
+frozen afterwards.
 
-Отдельный Cargo-воркспейс со своим lock-файлом: в основной крейт не входит.
+A separate Cargo workspace with its own lock file: it is not part of the main
+crate.
 
 ```
-gpui-editor/     прототип редактора на gpui
+gpui-editor/     the editor prototype on gpui
 ```
 
-Парсер `markdown-lite` спайк пережил и уехал в продакшн — теперь он в
-`crates/markdown-lite` основного воркспейса; прототип подключает его оттуда
-по пути.
+The `markdown-lite` parser survived the spike and moved into production — it
+now lives in `crates/markdown-lite` of the main workspace, and the prototype
+depends on it by path.
 
-## Запуск
+## Running
 
 ```
 cd prototypes
 cargo run -p gpui-editor
-cargo test              # 63 теста, GUI не нужен
+cargo test              # 63 tests, no GUI needed
 ```
 
-Первая сборка долгая: тянет gpui из репозитория Zed со всей платформой.
+The first build is long: it pulls gpui out of the Zed repository with the whole
+platform layer.
 
-Требования, помимо Rust:
+Requirements besides Rust:
 
-- toolchain 1.97.1 — ставится автоматически по `rust-toolchain.toml`;
-- на macOS — компонент Metal:
-  `xcodebuild -downloadComponent MetalToolchain` (~700 МБ), иначе сборка падает
-  на компиляции шейдеров gpui.
+- toolchain 1.97.1 — installed automatically from `rust-toolchain.toml`;
+- on macOS, the Metal component:
+  `xcodebuild -downloadComponent MetalToolchain` (~700 MB), without which the
+  build dies compiling gpui's shaders.
 
-Грабли gpui: `gpui_platform` нужно подключать с `features = ["font-kit"]` —
-без него окно открывается, но текст не рисуется вообще. Единственный признак —
-предупреждение через `log`, поэтому прототип зовёт `env_logger::init()`;
-запускать полезно с `RUST_LOG=warn`.
+A gpui trap: `gpui_platform` has to be pulled in with `features = ["font-kit"]`
+— without it the window opens but no text is drawn at all. The only sign is a
+warning through `log`, which is why the prototype calls `env_logger::init()`;
+running it with `RUST_LOG=warn` is worth it.
 
-## Клавиши
+## Keys
 
 | | |
 |---|---|
-| стрелки, `home`/`end`, `cmd-←`/`cmd-→` | курсор |
-| `shift` + стрелки, `shift-home`/`end` | выделение |
-| мышь: клик, протяжка | курсор и выделение |
-| `cmd-c` / `cmd-x` / `cmd-v` | буфер обмена |
-| `cmd-z` / `cmd-shift-z` | отмена и возврат |
-| `cmd-a` | выделить всё |
-| колесо мыши | прокрутка (работает и с включённым режимом каретки) |
-| `cmd-shift-t` | режим каретки (по умолчанию включён) |
-| `cmd-shift-l` | загрузить эссе на 20 000 знаков |
-| `cmd-q` | выход |
+| arrows, `home`/`end`, `cmd-←`/`cmd-→` | the cursor |
+| `shift` + arrows, `shift-home`/`end` | selection |
+| mouse: click, drag | cursor and selection |
+| `cmd-c` / `cmd-x` / `cmd-v` | the clipboard |
+| `cmd-z` / `cmd-shift-z` | undo and redo |
+| `cmd-a` | select all |
+| the mouse wheel | scrolling (works with typewriter mode on, too) |
+| `cmd-shift-t` | typewriter mode (on by default) |
+| `cmd-shift-l` | load a 20,000-character essay |
+| `cmd-q` | quit |
 
-## Что проверяем руками
+## What has to be checked by hand
 
-То, что нельзя проверить тестами, — задачи 2.3, 3.8 и группа 4 в `tasks.md`:
+What tests cannot check — tasks 2.3, 3.8 and group 4 in `tasks.md`:
 
-1. **Кириллица и IME** (жёсткий вентиль). Наберите абзац по-русски. Переключите
-   раскладку на ту, что идёт через IME, и наберите слово с составлением —
-   символы в процессе набора должны подчёркиваться и вставляться без потерь и
-   перестановок.
-2. **Разметка на месте.** Наберите `**жирный**`, `*курсив*`, `# заголовок`.
-   Уведите курсор со строки: символы разметки исчезают, стиль остаётся.
-   Вернитесь на строку: символы снова видны.
-3. **Прочий markdown.** `- список`, `[ссылка](url)`, `` `код` `` должны
-   остаться текстом.
-4. **Режим каретки.** Строка с курсором держится по центру при наборе и по
+1. **Cyrillic and IME** (a hard gate). Type a paragraph in Russian. Switch to a
+   layout that goes through an IME and type a word with composition — the
+   characters being composed must be underlined and inserted without losses or
+   reordering.
+2. **Markup in place.** Type `**bold**`, `*italic*`, `# heading`. Move the
+   cursor off the line: the markup characters disappear, the style stays. Come
+   back to the line: the characters are visible again.
+3. **Other markdown.** `- list`, `[link](url)`, `` `code` `` must stay text.
+4. **Typewriter mode.** The cursor's line stays centred while typing and on
    `enter`.
-5. **Отзывчивость.** `cmd-shift-l`, затем печатать и прокручивать: задержки
-   между нажатием и символом на экране быть не должно. Расчётную часть кадра
-   меряет `cargo test --test performance -- --nocapture`; на глаз остаётся
-   шейпинг и отрисовка.
-6. **Субъективный вентиль.** 20 минут настоящего письма: хочется ли здесь
-   писать.
+5. **Responsiveness.** `cmd-shift-l`, then type and scroll: there must be no
+   delay between a keypress and the character on screen. The computed part of
+   the frame is measured by `cargo test --test performance -- --nocapture`; the
+   eye is left to judge shaping and drawing.
+6. **The subjective gate.** Twenty minutes of real writing: do you want to
+   write here.
 
-Результаты — в Decision Record в `design.md`.
+The results are in the Decision Record in `design.md`.
