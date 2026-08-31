@@ -21,7 +21,8 @@ written fullscreen, editing happens in its own room, and an essay ends by being
 published or deliberately shelved. Today carries the session dots and the row
 of published essays; the Shelf shows the whole conveyor at once; the whole app
 is driven from the keyboard, and `cmd-h` and `cmd-shift-h` answer for the keys
-and for the method.
+and for the method. It installs as a background app and comes forward on one
+system-wide key.
 
 The stack is a native Rust GUI: **gpui**, the engine behind Zed, chosen at
 stage 0 against a live-markdown prototype. The `markdown-lite` parser moved out
@@ -106,6 +107,34 @@ Inside it `tab` (and `←`/`→`) walks the actions, `enter` chooses, `esc` clos
 Until you take a step nothing is highlighted: a stray `enter` cannot publish an
 essay.
 
+## Installing
+
+```
+make install       # builds Esse.app and puts it in /Applications
+make login-item    # and starts it at login, hidden, holding its key
+```
+
+esse is a background app: no Dock icon, no menu bar, nothing in the way. It is
+reached one way — **`ctrl-alt-e`**, from inside whatever you were doing. Press
+it and esse is in front, focused, ready to type; press it again and it is gone,
+with the text on disk. Closing the window does the same as pressing it away —
+esse keeps running and the key keeps working. `cmd-q` quits for real.
+
+The key is held system-wide, so it can collide with something else on the
+machine. Any other combination, spelled the way the app spells keys everywhere
+else:
+
+```
+make login-item HOTKEY=cmd-shift-space
+```
+
+To try one without installing anything: `ESSE_HOTKEY=cmd-shift-space cargo run
+-p esse-app`. If the combination is already taken, esse says so in the log and
+runs on without it.
+
+`make uninstall` removes the app and the launch agent. Your writing is in
+`~/Documents/Esse` and is never touched by any of this.
+
 ## Building and running
 
 Rust 1.97.1 is required — the toolchain is pinned in `rust-toolchain.toml` and
@@ -120,9 +149,11 @@ xcodebuild -downloadComponent MetalToolchain
 Then:
 
 ```
-cargo run -p esse-app      # run the app
-cargo test                 # everything
+make run                   # or: cargo run -p esse-app
+make test                  # or: cargo test
 cargo test -p esse-core    # the core only: seconds, no gpui build
+make app                   # assemble target/Esse.app without installing it
+make icon                  # redraw resources/esse.icns from scripts/icon.py
 ```
 
 The first build pulls ~700 gpui dependencies and takes minutes; later ones take
@@ -168,9 +199,12 @@ The structure:
 ```
 CONCEPT.md            the product concept
 PLAN.md               the implementation plan, stage by stage
+Makefile              run, test, build the app, install it, take it away again
 crates/esse-core/     the data model and storage — no GUI, tests in a second
 crates/markdown-lite/ the markup parser: headings, **bold**, *italic*
 crates/esse-app/      the gpui app: Today, the Shelf and the editor's two modes
+resources/            Info.plist, the icon, the launch agent
+scripts/              the bundle, and the script that draws the icon
 prototypes/           the frozen stage 0 editor prototype
 openspec/config.yaml  the project context for AI assistants
 openspec/specs/       the specs in force

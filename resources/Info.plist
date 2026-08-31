@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Esse</string>
+	<key>CFBundleDisplayName</key>
+	<string>Esse</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.nullhtp.esse</string>
+	<key>CFBundleExecutable</key>
+	<string>esse</string>
+	<key>CFBundleIconFile</key>
+	<string>esse</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleShortVersionString</key>
+	<string>__VERSION__</string>
+	<key>CFBundleVersion</key>
+	<string>__VERSION__</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<!-- A background app: no Dock icon, no menu bar. The app sets the same
+	     policy in code, because gpui overrides this one at launch
+	     (summon.rs, design.md D5). -->
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+</dict>
+</plist>

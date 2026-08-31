@@ -67,21 +67,14 @@ impl RootView {
         let today = cx.new(|cx| TodayView::new(data.clone(), cx));
         let subscription = cx.subscribe_in(&today, window, Self::on_today);
 
-        // Closing the window is leaving the editor: the text — and, in Write
-        // mode, the session — are owed to the disk before it goes.
+        // Closing the window is putting esse away, not ending it: the text goes
+        // to disk, the window stays, and the summon key brings it all back
+        // exactly as it was (summon-from-anywhere spec, design.md D4).
         let this = cx.entity().downgrade();
         window.on_window_should_close(cx, move |_, cx| {
-            this.update(cx, |this, cx| match &this.screen {
-                Screen::Write(write) => {
-                    write.clone().update(cx, |write, cx| write.finish(cx));
-                }
-                Screen::Edit(edit) => {
-                    edit.clone().update(cx, |edit, cx| edit.finish(cx));
-                }
-                Screen::Today | Screen::Shelf(_) => {}
-            })
-            .ok();
-            true
+            this.update(cx, |this, cx| this.put_away(cx)).ok();
+            cx.hide();
+            false
         });
 
         RootView {
@@ -96,6 +89,31 @@ impl RootView {
             _shelf: None,
             _editor: None,
         }
+    }
+
+    // -- going away and coming back -------------------------------------------
+
+    /// Everything esse owes the disk before it goes out of sight: the text, and
+    /// only the text. Being put away is not leaving — the session keeps
+    /// running, the editor keeps its state, and the way back is one keypress —
+    /// so the record of the session is not written here. That belongs to
+    /// leaving the room, switching modes, and quitting, as it always did.
+    pub fn put_away(&mut self, cx: &mut Context<Self>) {
+        match &self.screen {
+            Screen::Write(write) => {
+                let _ = write.clone().update(cx, |write, cx| write.save(cx));
+            }
+            Screen::Edit(edit) => {
+                let _ = edit.clone().update(cx, |edit, cx| edit.save(cx));
+            }
+            Screen::Today | Screen::Shelf(_) => {}
+        }
+    }
+
+    /// Back from being away: whatever the writer was typing into gets the keys
+    /// again, so a summon lands ready to type rather than merely visible.
+    pub fn take_the_keys(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        window.focus(&self.focus_handle(cx), cx);
     }
 
     // -- the sheets ----------------------------------------------------------

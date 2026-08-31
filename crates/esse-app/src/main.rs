@@ -13,6 +13,7 @@ mod keymap;
 mod line_input;
 mod root;
 mod shelf;
+mod summon;
 mod theme;
 mod today;
 mod write;
@@ -50,6 +51,12 @@ fn main() {
     let data = Data::open(&dir);
 
     application().run(move |cx: &mut App| {
+        // Out of the Dock and out of the menu bar, before anything is drawn.
+        // esse is reached by its key and by its window; this runs here because
+        // it is the first moment gpui's own activation policy can be set back
+        // (summon.rs, design.md D5).
+        summon::become_background_app();
+
         // Every shortcut the app has vocabulary for comes from one table, which
         // is also what the help overlay reads (keymap.rs, design.md D1). The
         // two baseline sets — the editor's and the capture line's — are the
@@ -60,14 +67,9 @@ fn main() {
         cx.bind_keys(line_input::key_bindings());
         cx.on_action(|_: &Quit, cx: &mut App| cx.quit());
 
-        // Closing the only window ends the app; esse has nothing to stay
-        // resident for.
-        cx.on_window_closed(|cx, _| {
-            if cx.windows().is_empty() {
-                cx.quit();
-            }
-        })
-        .detach();
+        // The window is never let go of: closing it puts esse away, and the
+        // summon key brings the same window back with everything in it
+        // (root.rs, design.md D4). `cmd-q` is the way out.
 
         let bounds = Bounds::centered(None, size(px(680.), px(720.)), cx);
         let window = cx
@@ -84,12 +86,24 @@ fn main() {
             )
             .unwrap();
 
+        // One key reaches esse from anywhere, and puts it away again
+        // (summon-from-anywhere spec).
+        summon::listen(window, cx);
+
+        // A login start builds the same window and hides it, so the first
+        // summon is as quick as every later one (design.md, D6).
+        let hidden = summon::start_hidden();
+
         // Focus the capture line before the window is on screen: launching the
         // app is already being ready to type.
         window
             .update(cx, |view, window, cx| {
                 window.focus(&view.focus_handle(cx), cx);
-                cx.activate(true);
+                if hidden {
+                    cx.hide();
+                } else {
+                    cx.activate(true);
+                }
 
                 // What the launch actually cost, measured to the first frame
                 // drawn — the moment the writer could have started typing.

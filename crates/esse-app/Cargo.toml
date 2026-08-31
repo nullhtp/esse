@@ -16,4 +16,11 @@ gpui_platform.workspace = true
 chrono.workspace = true
 dirs.workspace = true
 env_logger.workspace = true
+futures.workspace = true
+global-hotkey.workspace = true
 log.workspace = true
+# esse is a macOS app (gpui's Metal renderer, the Carbon summon key), so the
+# platform dependencies are not behind a cfg: there is no other build.
+objc2.workspace = true
+objc2-app-kit.workspace = true
+objc2-foundation.workspace = true
