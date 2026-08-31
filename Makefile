@@ -6,6 +6,7 @@
 #   make install      put it in /Applications
 #   make login-item   start it at login, with no window on screen
 #   make uninstall    remove both
+#   make release      build the zip a release is made of, and the cask
 #   make icon         redraw resources/esse.icns
 
 APP := Esse.app
@@ -13,14 +14,10 @@ BUNDLE := target/$(APP)
 PREFIX ?= /Applications
 INSTALLED := $(PREFIX)/$(APP)
 
-AGENT := com.nullhtp.esse
 # The system-wide summon key, in the spelling the app uses everywhere else.
 HOTKEY ?= ctrl-alt-e
-AGENTS := $(HOME)/Library/LaunchAgents
-AGENT_PLIST := $(AGENTS)/$(AGENT).plist
-DOMAIN := gui/$(shell id -u)
 
-.PHONY: run test app install login-item uninstall icon
+.PHONY: run test app install login-item uninstall release icon
 
 run:
 	cargo run -p esse-app
@@ -38,21 +35,19 @@ install: app
 	@echo "open it once, then $(HOTKEY) from anywhere"
 
 # The summon key only works while esse is running, so the machine starts it.
+# The same script travels inside the bundle, for copies installed by Homebrew.
 login-item: install
-	mkdir -p "$(AGENTS)"
-	sed -e 's|__PROGRAM__|$(INSTALLED)/Contents/MacOS/esse|' \
-		-e 's|__HOTKEY__|$(HOTKEY)|' \
-		resources/$(AGENT).plist >"$(AGENT_PLIST)"
-	-launchctl bootout $(DOMAIN)/$(AGENT) 2>/dev/null
-	launchctl bootstrap $(DOMAIN) "$(AGENT_PLIST)"
-	@echo "esse starts at login, hidden, holding $(HOTKEY)"
+	@HOTKEY=$(HOTKEY) scripts/login-item.sh "$(INSTALLED)/Contents/MacOS/esse"
 
 uninstall:
-	-launchctl bootout $(DOMAIN)/$(AGENT) 2>/dev/null
-	rm -f "$(AGENT_PLIST)"
+	@scripts/login-item.sh --off
 	rm -rf "$(INSTALLED)"
 	@echo "removed: $(INSTALLED) and the launch agent"
 	@echo "your writing is untouched in ~/Documents/Esse"
+
+# The artifact a release is made of, and the cask that points at it.
+release:
+	@scripts/release.sh
 
 icon:
 	rm -rf target/esse.iconset

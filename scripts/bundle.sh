@@ -17,6 +17,9 @@ mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 
 cp "$root/target/release/esse" "$bundle/Contents/MacOS/esse"
 cp "$root/resources/esse.icns" "$bundle/Contents/Resources/esse.icns"
+# The app carries its own way to start at login, so a Homebrew copy needs no
+# clone of this repository (brew-install design.md, D5).
+install -m 755 "$root/scripts/login-item.sh" "$bundle/Contents/Resources/login-item"
 sed "s/__VERSION__/$version/g" "$root/resources/Info.plist" >"$bundle/Contents/Info.plist"
 printf 'APPL????' >"$bundle/Contents/PkgInfo"
 

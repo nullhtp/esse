@@ -1,0 +1,56 @@
+# Generated from resources/cask.rb.in in nullhtp/esse by scripts/release.sh.
+# Edit it there: the copy in the tap is a copy (brew-install design.md, D4).
+cask "esse" do
+  version "__VERSION__"
+  sha256 "__SHA256__"
+
+  url "https://github.com/nullhtp/esse/releases/download/v#{version}/Esse-#{version}-arm64.zip",
+      verified: "github.com/nullhtp/esse/"
+  name "esse"
+  desc "Conveyor from a spark to a published essay"
+  homepage "https://github.com/nullhtp/esse"
+
+  depends_on macos: ">= :ventura"
+  depends_on arch: :arm64
+
+  app "Esse.app"
+
+  # esse is signed by its author rather than notarised by Apple, and Homebrew
+  # quarantines what it downloads — the two together make a Gatekeeper dialog
+  # instead of an app. The flag comes off the bundle whose checksum was just
+  # verified, and the caveats say so out loud (design.md, D3).
+  postflight do
+    system_command "/usr/bin/xattr",
+                   args: ["-d", "-r", "com.apple.quarantine", "#{appdir}/Esse.app"]
+  end
+
+  uninstall quit:      "com.nullhtp.esse",
+            launchctl: "com.nullhtp.esse"
+
+  # Never the writing: that lives in ~/Documents/Esse and is nobody's to bin.
+  zap trash: "~/Library/LaunchAgents/com.nullhtp.esse.plist"
+
+  caveats <<~EOS
+    esse is a background app: no Dock icon, no menu bar. Open it once, then
+    reach it from anywhere with ctrl-alt-e — press it again to put it away.
+    cmd-q quits.
+
+    To have it waiting for that key from login:
+      /Applications/Esse.app/Contents/Resources/login-item
+    and to stop:
+      /Applications/Esse.app/Contents/Resources/login-item --off
+
+    Another combination, if ctrl-alt-e is taken on your machine:
+      HOTKEY=cmd-shift-space /Applications/Esse.app/Contents/Resources/login-item
+
+    Your writing lives in ~/Documents/Esse as plain files, and nothing here —
+    install, upgrade or uninstall — touches it.
+
+    This build is signed by its author, not notarised by Apple: paying a
+    yearly developer subscription for an app with one writer is not the trade
+    esse makes. Homebrew quarantines what it downloads and macOS refuses a
+    quarantined app signed this way, so this cask clears that flag from the
+    app it has just checksummed. The source it was built from is at
+    github.com/nullhtp/esse, and `make install` builds your own copy instead.
+  EOS
+end

@@ -21,8 +21,8 @@ written fullscreen, editing happens in its own room, and an essay ends by being
 published or deliberately shelved. Today carries the session dots and the row
 of published essays; the Shelf shows the whole conveyor at once; the whole app
 is driven from the keyboard, and `cmd-h` and `cmd-shift-h` answer for the keys
-and for the method. It installs as a background app and comes forward on one
-system-wide key.
+and for the method. It installs with Homebrew as a background app and comes
+forward on one system-wide key.
 
 The stack is a native Rust GUI: **gpui**, the engine behind Zed, chosen at
 stage 0 against a live-markdown prototype. The `markdown-lite` parser moved out
@@ -110,9 +110,11 @@ essay.
 ## Installing
 
 ```
-make install       # builds Esse.app and puts it in /Applications
-make login-item    # and starts it at login, hidden, holding its key
+brew install nullhtp/tap/esse
 ```
+
+Apple silicon, macOS 13 or later. Then open Esse.app once — and after that you
+never have to find it again:
 
 esse is a background app: no Dock icon, no menu bar, nothing in the way. It is
 reached one way — **`ctrl-alt-e`**, from inside whatever you were doing. Press
@@ -120,20 +122,39 @@ it and esse is in front, focused, ready to type; press it again and it is gone,
 with the text on disk. Closing the window does the same as pressing it away —
 esse keeps running and the key keeps working. `cmd-q` quits for real.
 
+To have esse waiting for that key from the first minute of the day:
+
+```
+/Applications/Esse.app/Contents/Resources/login-item        # on
+/Applications/Esse.app/Contents/Resources/login-item --off  # off
+```
+
 The key is held system-wide, so it can collide with something else on the
 machine. Any other combination, spelled the way the app spells keys everywhere
 else:
 
 ```
-make login-item HOTKEY=cmd-shift-space
+HOTKEY=cmd-shift-space /Applications/Esse.app/Contents/Resources/login-item
 ```
 
 To try one without installing anything: `ESSE_HOTKEY=cmd-shift-space cargo run
 -p esse-app`. If the combination is already taken, esse says so in the log and
 runs on without it.
 
-`make uninstall` removes the app and the launch agent. Your writing is in
-`~/Documents/Esse` and is never touched by any of this.
+`brew uninstall --cask esse` removes the app; the login item goes with
+`login-item --off` first. Your writing is in `~/Documents/Esse` and none of
+this ever touches it.
+
+The released build is signed by its author, not notarised by Apple — a yearly
+developer subscription is not a trade this app makes — so the cask clears the
+quarantine flag macOS would otherwise refuse the app over, after checking the
+download against the checksum in the recipe. If you would rather not take that
+on faith, build your own copy:
+
+```
+make install       # builds Esse.app and puts it in /Applications
+make login-item    # and starts it at login, hidden, holding its key
+```
 
 ## Building and running
 
@@ -153,6 +174,7 @@ make run                   # or: cargo run -p esse-app
 make test                  # or: cargo test
 cargo test -p esse-core    # the core only: seconds, no gpui build
 make app                   # assemble target/Esse.app without installing it
+make release               # the zip a release is made of, and the cask for it
 make icon                  # redraw resources/esse.icns from scripts/icon.py
 ```
 
@@ -203,8 +225,8 @@ Makefile              run, test, build the app, install it, take it away again
 crates/esse-core/     the data model and storage — no GUI, tests in a second
 crates/markdown-lite/ the markup parser: headings, **bold**, *italic*
 crates/esse-app/      the gpui app: Today, the Shelf and the editor's two modes
-resources/            Info.plist, the icon, the launch agent
-scripts/              the bundle, and the script that draws the icon
+resources/            Info.plist, the icon, the Homebrew cask it is rendered from
+scripts/              the bundle, the release, the login item, the icon
 prototypes/           the frozen stage 0 editor prototype
 openspec/config.yaml  the project context for AI assistants
 openspec/specs/       the specs in force
