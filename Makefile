@@ -4,6 +4,7 @@
 #   make test         everything
 #   make app          assemble target/Esse.app
 #   make install      put it in /Applications
+#   make setup        answer the three questions that finish an install
 #   make login-item   start it at login, with no window on screen
 #   make uninstall    remove both
 #   make release      build the zip a release is made of, and the cask
@@ -17,7 +18,7 @@ INSTALLED := $(PREFIX)/$(APP)
 # The system-wide summon key, in the spelling the app uses everywhere else.
 HOTKEY ?= ctrl-alt-e
 
-.PHONY: run test app install login-item uninstall release icon
+.PHONY: run test app install setup login-item uninstall release icon
 
 run:
 	cargo run -p esse-app
@@ -32,7 +33,12 @@ install: app
 	rm -rf "$(INSTALLED)"
 	cp -R "$(BUNDLE)" "$(INSTALLED)"
 	@echo "installed: $(INSTALLED)"
-	@echo "open it once, then $(HOTKEY) from anywhere"
+	@echo "now: make setup"
+
+# The three questions that finish an install, asked of the copy in
+# /Applications — the same conversation a Homebrew install points at.
+setup: install
+	@"$(INSTALLED)/Contents/Resources/esse-setup" "$(INSTALLED)/Contents/MacOS/esse"
 
 # The summon key only works while esse is running, so the machine starts it.
 # The same script travels inside the bundle, for copies installed by Homebrew.
@@ -43,7 +49,7 @@ uninstall:
 	@scripts/login-item.sh --off
 	rm -rf "$(INSTALLED)"
 	@echo "removed: $(INSTALLED) and the launch agent"
-	@echo "your writing is untouched in ~/Documents/Esse"
+	@echo "your writing is untouched, wherever you keep it"
 
 # The artifact a release is made of, and the cask that points at it.
 release:

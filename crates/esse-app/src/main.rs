@@ -32,7 +32,31 @@ use root::RootView;
 
 actions!(esse, [Quit]);
 
+/// `esse --check-hotkey cmd-shift-space`, and nothing else. esse has no command
+/// line: this is one question setup needs answered, and every other argument —
+/// including the ones macOS hands a bundle — is left alone.
+fn check_hotkey_request() -> Option<String> {
+    let mut arguments = std::env::args().skip(1);
+    match arguments.next()?.as_str() {
+        "--check-hotkey" => Some(arguments.next().unwrap_or_default()),
+        _ => None,
+    }
+}
+
 fn main() {
+    // The one question the binary answers without becoming an application:
+    // `esse-setup` asks whether a combination is spelled in a way esse can
+    // read, before it records it (guided-install design.md, D11).
+    if let Some(spelling) = check_hotkey_request() {
+        match summon::check_spelling(&spelling) {
+            Ok(()) => return,
+            Err(trouble) => {
+                eprintln!("esse: {trouble}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     // Before anything else: the launch has a budget, and it is measured from
     // here (today-screen spec, "launch is not the slow part").
     let started = Instant::now();

@@ -5,6 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
+use crate::setup::Setup;
 
 /// The name of the folder, as a person reads it in Finder.
 const FOLDER: &str = "Esse";
@@ -23,13 +24,32 @@ impl DataDir {
     ///
     /// `ESSE_DATA_DIR` overrides the location and suppresses the move: a named
     /// path is a deliberate one, and nobody's real essays should walk into it
-    /// (design.md, D4).
+    /// (design.md, D4). A folder chosen when esse was set up comes next, for
+    /// the same reason and with the same effect on the move (guided-install
+    /// design.md, D4–D5).
     pub fn open() -> Result<Self> {
         if let Some(named) = env::var_os("ESSE_DATA_DIR").filter(|path| !path.is_empty()) {
             return DataDir::at(named);
         }
 
+        if let Some(chosen) = Setup::read().data_dir {
+            return DataDir::chosen(chosen);
+        }
+
         DataDir::open_in(visible_root()?, platform_root())
+    }
+
+    /// Opens the folder named at setup. It is created if it is missing — a
+    /// folder can be named before anything is written to it — but never
+    /// conjured under a parent that is not there, which is what an unmounted
+    /// volume looks like from here (guided-install design.md, D9).
+    fn chosen(root: PathBuf) -> Result<Self> {
+        match root.parent() {
+            Some(parent) if !parent.as_os_str().is_empty() && !parent.exists() => {
+                Err(Error::MissingLocation { path: root })
+            }
+            _ => DataDir::at(root),
+        }
     }
 
     /// The platform-free half of [`DataDir::open`]: the folder to end up in and
@@ -183,6 +203,49 @@ mod tests {
             fs::read_to_string(new.join("sparks.jsonl")).unwrap(),
             "{\"text\":\"newer\"}\n"
         );
+        assert!(old.join("essays/why-essays.md").is_file());
+    }
+
+    /// A folder can be named at setup before a word has been written into it.
+    #[test]
+    fn a_folder_named_at_setup_is_created() {
+        let temp = TempDir::new().unwrap();
+        let named = temp.path().join("Writing/Essays");
+        fs::create_dir_all(named.parent().unwrap()).unwrap();
+
+        let dir = DataDir::chosen(named.clone()).unwrap();
+
+        assert_eq!(dir.root(), named);
+        assert!(named.is_dir());
+    }
+
+    /// The trap this guards: the folder is on a disk that is not plugged in,
+    /// and esse quietly makes an empty one with the same name.
+    #[test]
+    fn a_folder_whose_volume_is_gone_stops_the_launch() {
+        let temp = TempDir::new().unwrap();
+        let named = temp.path().join("Volumes/Backup/Essays");
+
+        let error = DataDir::chosen(named.clone()).unwrap_err();
+
+        assert!(matches!(error, Error::MissingLocation { path } if path == named));
+        assert!(!named.exists(), "an empty lookalike was created anyway");
+    }
+
+    /// Naming a folder is as deliberate as naming `ESSE_DATA_DIR`: nothing is
+    /// carried into it behind the writer's back.
+    #[test]
+    fn a_folder_chosen_at_setup_is_never_migrated_into() {
+        let temp = TempDir::new().unwrap();
+        let old = temp.path().join("Library/Application Support/esse");
+        let named = temp.path().join("Writing/Essays");
+        old_installation(&old);
+        fs::create_dir_all(named.parent().unwrap()).unwrap();
+
+        let dir = DataDir::chosen(named.clone()).unwrap();
+
+        assert_eq!(dir.root(), named);
+        assert_eq!(fs::read_dir(&named).unwrap().count(), 0);
         assert!(old.join("essays/why-essays.md").is_file());
     }
 

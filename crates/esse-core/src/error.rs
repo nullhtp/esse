@@ -30,6 +30,17 @@ pub enum Error {
         source: io::Error,
     },
 
+    /// A folder named at setup that is not there to be opened — the volume it
+    /// lives on is not mounted, most likely. Creating it would hand the writer
+    /// a convincing empty lookalike while their essays sat on an unplugged
+    /// disk (guided-install design.md, D9).
+    #[error(
+        "{path} is not reachable: the folder above it does not exist. \
+         If it is on another volume, mount it and open esse again; \
+         to choose a different folder, run esse-setup"
+    )]
+    MissingLocation { path: PathBuf },
+
     /// A JSONL line that does not parse. Reported with its line number so the
     /// file can be repaired by hand — that is the point of a text format.
     #[error("{path}: line {line} is not a valid record: {source}")]

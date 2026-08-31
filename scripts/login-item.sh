@@ -8,10 +8,15 @@
 #
 #   login-item [executable]     install the launch agent and start it now
 #   login-item --off            remove it
+#   login-item --status         say whether it is installed (exit 0 if it is)
 #
 # HOTKEY names the summon key, in the spelling the app uses everywhere else:
 #
 #   HOTKEY=cmd-shift-space login-item
+#
+# This is the mechanism; `esse-setup` is the conversation that drives it, and
+# asks the question instead of leaving it as a command to find (guided-install
+# design.md, D2).
 
 set -euo pipefail
 
@@ -23,11 +28,24 @@ hotkey="${HOTKEY:-ctrl-alt-e}"
 
 here=$(cd "$(dirname "$0")" && pwd)
 
+# What is true right now, for a person reading and for setup offering the
+# right default: the exit code is the answer, the line is the courtesy.
+if [ "${1:-}" = "--status" ]; then
+	if [ -f "$plist" ]; then
+		held=$(/usr/libexec/PlistBuddy -c \
+			"Print :EnvironmentVariables:ESSE_HOTKEY" "$plist" 2>/dev/null || true)
+		echo "esse starts at login, holding ${held:-$hotkey}"
+		exit 0
+	fi
+	echo "esse does not start at login"
+	exit 1
+fi
+
 if [ "${1:-}" = "--off" ]; then
 	launchctl bootout "$domain/$label" 2>/dev/null || true
 	rm -f "$plist"
 	echo "esse no longer starts at login"
-	echo "your writing is untouched in ~/Documents/Esse"
+	echo "your writing is untouched, wherever you keep it"
 	exit 0
 fi
 

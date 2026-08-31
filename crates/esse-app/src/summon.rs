@@ -17,6 +17,7 @@ use futures::channel::mpsc;
 use futures::StreamExt;
 use global_hotkey::hotkey::{Code, HotKey, Modifiers};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
+use esse_core::Setup;
 use gpui::{App, WindowHandle};
 use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
 use objc2_foundation::MainThreadMarker;
@@ -31,6 +32,10 @@ pub const DEFAULT_KEYS: &str = "ctrl-alt-e";
 /// Where an installation names a different combination. A collision is
 /// personal, so the launch agent gets to settle it — this is not a setting the
 /// app owns, and nothing in the app ever writes it.
+///
+/// When the environment says nothing, the answer given to `esse-setup` does:
+/// a combination named there is answered however esse was started, not only on
+/// the launches the launch agent makes (guided-install design.md, D5).
 const KEYS: &str = "ESSE_HOTKEY";
 
 /// Set by the launch agent, so a login can start esse with nothing on screen.
@@ -76,7 +81,7 @@ fn application() -> objc2::rc::Retained<NSApplication> {
 /// more: an app that will not start because a shortcut is taken is worse than
 /// an app you have to click on (summon-from-anywhere spec).
 pub fn listen(window: WindowHandle<RootView>, cx: &mut App) {
-    let spelling = env::var(KEYS).unwrap_or_else(|_| DEFAULT_KEYS.to_string());
+    let spelling = combination();
     let hotkey = match parse(&spelling) {
         Ok(hotkey) => hotkey,
         Err(trouble) => {
@@ -117,6 +122,26 @@ pub fn listen(window: WindowHandle<RootView>, cx: &mut App) {
     .detach();
 
     log::info!("summon key: {spelling}");
+}
+
+/// The combination this launch holds: the environment first, then whatever was
+/// answered at setup, then the one esse was born with.
+fn combination() -> String {
+    env::var(KEYS)
+        .ok()
+        .filter(|spelling| !spelling.trim().is_empty())
+        .or_else(|| Setup::read().hotkey)
+        .unwrap_or_else(|| DEFAULT_KEYS.to_string())
+}
+
+/// Whether esse can read a combination, asked from outside the app.
+///
+/// `esse-setup` has to refuse `cmd-shift-spacebar` before it records it, and
+/// the vocabulary of key names is here rather than in a shell script that would
+/// drift away from it. This is not a command line for esse; it is the parser,
+/// asked out loud (guided-install design.md, D11).
+pub fn check_spelling(spelling: &str) -> Result<(), String> {
+    parse(spelling).map(|_| ())
 }
 
 /// One key, both directions: what is in front of you goes away, and what is

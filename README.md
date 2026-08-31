@@ -111,39 +111,46 @@ essay.
 
 ```
 brew install nullhtp/tap/esse
+/Applications/Esse.app/Contents/Resources/esse-setup
 ```
 
-Apple silicon, macOS 13 or later. Then open Esse.app once — and after that you
-never have to find it again:
+Apple silicon, macOS 13 or later. The second line is the whole of the setup,
+and it asks three things:
 
-esse is a background app: no Dock icon, no menu bar, nothing in the way. It is
-reached one way — **`ctrl-alt-e`**, from inside whatever you were doing. Press
-it and esse is in front, focused, ready to type; press it again and it is gone,
-with the text on disk. Closing the window does the same as pressing it away —
-esse keeps running and the key keeps working. `cmd-q` quits for real.
+- **Where your essays live.** `~/Documents/Esse` unless you name somewhere
+  else. If writing is already there, it offers to take it with you.
+- **Whether esse waits at login**, holding its key with no window on screen.
+- **Which key brings it forward** — `ctrl-alt-e`, or any other combination if
+  that one is taken on your machine.
 
-To have esse waiting for that key from the first minute of the day:
+Run it again whenever an answer changes; pressing `enter` through it changes
+nothing. It is the only setup esse has: there is no preferences window, and
+the app itself never asks you any of this.
+
+After that you never have to find esse again. It is a background app: no Dock
+icon, no menu bar, nothing in the way. It is reached one way — **`ctrl-alt-e`**,
+from inside whatever you were doing. Press it and esse is in front, focused,
+ready to type; press it again and it is gone, with the text on disk. Closing
+the window does the same as pressing it away — esse keeps running and the key
+keeps working. `cmd-q` quits for real.
+
+The launch agent is a plain script underneath, if you would rather drive it
+yourself than answer a question:
 
 ```
 /Applications/Esse.app/Contents/Resources/login-item        # on
 /Applications/Esse.app/Contents/Resources/login-item --off  # off
-```
-
-The key is held system-wide, so it can collide with something else on the
-machine. Any other combination, spelled the way the app spells keys everywhere
-else:
-
-```
+/Applications/Esse.app/Contents/Resources/login-item --status
 HOTKEY=cmd-shift-space /Applications/Esse.app/Contents/Resources/login-item
 ```
 
-To try one without installing anything: `ESSE_HOTKEY=cmd-shift-space cargo run
--p esse-app`. If the combination is already taken, esse says so in the log and
-runs on without it.
+To try a combination without installing anything: `ESSE_HOTKEY=cmd-shift-space
+cargo run -p esse-app`. If the combination is already taken, esse says so in
+the log and runs on without it.
 
 `brew uninstall --cask esse` removes the app; the login item goes with
-`login-item --off` first. Your writing is in `~/Documents/Esse` and none of
-this ever touches it.
+`login-item --off` first. Your writing stays exactly where you told setup to
+keep it, and none of this ever touches it.
 
 The released build is signed by its author, not notarised by Apple — a yearly
 developer subscription is not a trade this app makes — so the cask clears the
@@ -153,7 +160,7 @@ on faith, build your own copy:
 
 ```
 make install       # builds Esse.app and puts it in /Applications
-make login-item    # and starts it at login, hidden, holding its key
+make setup         # and asks the same three questions
 ```
 
 ## Building and running
@@ -183,8 +190,8 @@ seconds.
 
 ## Data
 
-Everything is plain files in `~/Documents/Esse` — a folder you can open, read
-and back up like any other:
+Everything is plain files in one folder you can open, read and back up like any
+other — `~/Documents/Esse`, or wherever you told setup to put it:
 
 ```
 sparks.jsonl        sparks, one JSON object per line
@@ -195,12 +202,18 @@ essays/<slug>.md    an essay: TOML front matter between +++ and the text
 The Shelf says the path at its foot and `cmd-o` opens the folder, so the app
 never has to be asked where the writing went.
 
+esse looks for that folder in this order: `ESSE_DATA_DIR` if it is set, then
+the folder named at setup, then `~/Documents/Esse`. A folder named at setup is
+recorded in `~/Library/Preferences/com.nullhtp.esse.conf` — two lines that
+setup writes and the app only reads. If it names a folder whose parent is gone
+— an external disk that is not plugged in — esse says so and stops, rather than
+making a convincing empty folder in its place.
+
 No database and no sync: the files are read and edited by hand and survive any
 refactoring. An installation from before the folder was made visible moves
 itself out of `~/Library/Application Support/esse` on the first launch, once
 and whole; if both folders exist, the visible one is used and the old one is
-left alone. `ESSE_DATA_DIR` overrides the directory — that is for development
-and tests, not a user setting.
+left alone. `ESSE_DATA_DIR` is for development and tests, not a user setting.
 
 ## Development
 
@@ -226,7 +239,7 @@ crates/esse-core/     the data model and storage — no GUI, tests in a second
 crates/markdown-lite/ the markup parser: headings, **bold**, *italic*
 crates/esse-app/      the gpui app: Today, the Shelf and the editor's two modes
 resources/            Info.plist, the icon, the Homebrew cask it is rendered from
-scripts/              the bundle, the release, the login item, the icon
+scripts/              the bundle, the release, setup, the login item, the icon
 prototypes/           the frozen stage 0 editor prototype
 openspec/config.yaml  the project context for AI assistants
 openspec/specs/       the specs in force
