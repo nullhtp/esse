@@ -6,7 +6,7 @@ members = ["crates/esse-core", "crates/esse-app", "crates/markdown-lite"]
 exclude = ["prototypes"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 publish = false
 

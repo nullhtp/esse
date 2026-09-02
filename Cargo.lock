@@ -1581,7 +1581,7 @@ dependencies = [
 
 [[package]]
 name = "esse-app"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chrono",
  "dirs",
@@ -1601,7 +1601,7 @@ dependencies = [
 
 [[package]]
 name = "esse-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chrono",
  "dirs",
@@ -3214,7 +3214,7 @@ dependencies = [
 
 [[package]]
 name = "markdown-lite"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "maybe-rayon"
