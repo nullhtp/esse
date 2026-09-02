@@ -21,6 +21,9 @@ pub const HIGHLIGHT: u32 = 0xf1ead9;
 /// The one accent in the app: sienna, and only ever the caret. Everything else
 /// is ink, paper, or the space between them.
 pub const CARET: u32 = 0xb0532c;
+/// Text selected in the capture line: the caret's own colour, laid on the page
+/// thinly enough to read through — the accent is still only ever the caret.
+pub const SELECTION: u32 = 0xb0532c2b;
 /// Trouble the writer has to know about — deeper and redder than the caret, so
 /// the two never read as the same thing.
 pub const ALARM: u32 = 0x9e2b1c;
