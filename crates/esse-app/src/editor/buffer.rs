@@ -235,6 +235,24 @@ impl Buffer {
         self.delete_range(range);
     }
 
+    /// Delete the selection, or the word before the caret — option-backspace.
+    /// The word jump decides how far that is, so the key stops where the
+    /// caret would have.
+    pub fn delete_word_left(&mut self) {
+        if self.selection.is_empty() {
+            self.move_word_left(true);
+        }
+        self.backspace();
+    }
+
+    /// The same forwards — option-delete.
+    pub fn delete_word_right(&mut self) {
+        if self.selection.is_empty() {
+            self.move_word_right(true);
+        }
+        self.delete_forward();
+    }
+
     /// Delete the selection and return it, for cut.
     pub fn cut(&mut self) -> String {
         let taken = self.selected_text().to_string();
@@ -602,7 +620,9 @@ impl Buffer {
 
 /// Where a word jump stops. Letters, digits and the apostrophes inside words
 /// are word; everything else — spaces, punctuation, markdown markers — is not.
-fn is_word_break(ch: char) -> bool {
+/// Shared with the capture line, so an option-backspace stops in the same
+/// places in both.
+pub fn is_word_break(ch: char) -> bool {
     !ch.is_alphanumeric() && ch != '\'' && ch != '’'
 }
 
@@ -1120,6 +1140,47 @@ mod tests {
     }
 
     // -- markup -----------------------------------------------------------
+
+    #[test]
+    fn option_backspace_takes_the_word_before_the_caret() {
+        let mut buffer = typed("первая мысль");
+
+        buffer.delete_word_left();
+        assert_eq!(buffer.text(), "первая ");
+        // The space in front of the word goes with the word after it.
+        buffer.delete_word_left();
+        assert_eq!(buffer.text(), "");
+
+        buffer.delete_word_left();
+        assert_eq!(buffer.text(), "", "nothing left to take");
+    }
+
+    #[test]
+    fn option_backspace_takes_a_selection_whole() {
+        let mut buffer = selecting("one word here", 4..8);
+        buffer.delete_word_left();
+        assert_eq!(buffer.text(), "one  here", "the selection, not a word past it");
+    }
+
+    #[test]
+    fn option_delete_takes_the_word_after_the_caret() {
+        let mut buffer = Buffer::new("две мысли");
+        buffer.set_cursor(0);
+
+        buffer.delete_word_right();
+        assert_eq!(buffer.text(), " мысли");
+        assert_eq!(buffer.cursor(), 0);
+    }
+
+    #[test]
+    fn a_word_deletion_undoes_as_one_step() {
+        let mut buffer = typed("первая мысль");
+        buffer.delete_word_left();
+        assert_eq!(buffer.text(), "первая ");
+
+        assert!(buffer.undo());
+        assert_eq!(buffer.text(), "первая мысль", "the whole word comes back");
+    }
 
     fn selecting(text: &str, range: Range<usize>) -> Buffer {
         let mut buffer = Buffer::new(text);

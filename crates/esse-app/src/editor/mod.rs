@@ -45,6 +45,9 @@ actions!(
         Copy,
         Cut,
         Delete,
+        DeleteToRowStart,
+        DeleteWordLeft,
+        DeleteWordRight,
         Down,
         End,
         Heading1,
@@ -105,6 +108,9 @@ pub fn key_bindings() -> Vec<gpui::KeyBinding> {
         Key::new("cmd-shift-right", SelectEnd, EDITOR),
         Key::new("backspace", Backspace, EDITOR),
         Key::new("delete", Delete, EDITOR),
+        Key::new("alt-backspace", DeleteWordLeft, EDITOR),
+        Key::new("alt-delete", DeleteWordRight, EDITOR),
+        Key::new("cmd-backspace", DeleteToRowStart, EDITOR),
         Key::new("enter", Newline, EDITOR),
         Key::new("cmd-a", SelectAll, EDITOR),
         Key::new("cmd-c", Copy, EDITOR),
@@ -420,6 +426,40 @@ impl EditorView {
 
     fn delete(&mut self, _: &Delete, _: &mut Window, cx: &mut Context<Self>) {
         self.buffer.delete_forward();
+        self.edited(cx);
+    }
+
+    fn delete_word_left(&mut self, _: &DeleteWordLeft, _: &mut Window, cx: &mut Context<Self>) {
+        self.buffer.delete_word_left();
+        self.edited(cx);
+    }
+
+    fn delete_word_right(&mut self, _: &DeleteWordRight, _: &mut Window, cx: &mut Context<Self>) {
+        self.buffer.delete_word_right();
+        self.edited(cx);
+    }
+
+    /// Command-backspace takes everything from the start of the visual row to
+    /// the caret — the row Home goes to the start of, so the two keys agree
+    /// about where a row begins.
+    fn delete_to_row_start(
+        &mut self,
+        _: &DeleteToRowStart,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.buffer.selection().is_empty() {
+            match self.row_edge(false) {
+                Some(offset) => self.buffer.move_head(offset, true),
+                None => self.buffer.move_to_line_start(true),
+            }
+            // The caret was already at the start of the row: what is above it
+            // belongs to the row above, not to this one.
+            if self.buffer.selection().is_empty() {
+                return;
+            }
+        }
+        self.buffer.backspace();
         self.edited(cx);
     }
 
@@ -747,6 +787,9 @@ impl Render for EditorView {
             .on_action(cx.listener(Self::select_all))
             .on_action(cx.listener(Self::backspace))
             .on_action(cx.listener(Self::delete))
+            .on_action(cx.listener(Self::delete_word_left))
+            .on_action(cx.listener(Self::delete_word_right))
+            .on_action(cx.listener(Self::delete_to_row_start))
             .on_action(cx.listener(Self::newline))
             .on_action(cx.listener(Self::undo))
             .on_action(cx.listener(Self::redo))
