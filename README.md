@@ -9,7 +9,7 @@ life. Five mechanics against five beginner problems, and nothing else.
 Spark  →  Draft (free writing)  →  Editing  →  Published
 ```
 
-A hard constraint: **only one essay in progress**. Sparks are unlimited.
+A hard constraint: **at most three essays in progress**. Sparks are unlimited.
 
 The full concept, including the anti-features and the open questions, is in
 [CONCEPT.md](CONCEPT.md).
@@ -38,9 +38,14 @@ be any number of sparks; they sit in a list, newest first.
 **Starting.** The Write button is the only way into the editor; an empty
 document does not exist in this app.
 
-- if an essay is already in progress, the button opens it;
-- if not, the list of sparks becomes a choice: click the one to start from;
-- if there are no sparks, the app says so: a spark comes first.
+- the button always asks what to work on: the essays in progress first, the
+  sparks below them;
+- `enter` alone takes the top entry — the essay written in last, or the newest
+  spark when nothing is open;
+- with three essays open the sparks offer no start action, and one line says
+  that publishing or shelving one makes room;
+- if nothing is open and there are no sparks, the app says so: a spark comes
+  first.
 
 The chosen spark is **spent**: its text goes into the new draft's front matter,
 the file name is derived from it (Cyrillic is transliterated: "почему эссе" →
@@ -85,12 +90,14 @@ here: the method for this place, step by step.
 **Today.** `cmd-enter` — Write, `cmd-l` — the Shelf. Both take a modifier, so
 ordinary typing always lands in the spark line.
 
-**Choosing a spark.** When Write asks which spark to start from, the spark line
-gives its keys to the list: `↑`/`↓` walk it (the freshest is highlighted),
-`enter` starts from it, `esc` changes your mind.
+**Choosing what to work on.** When Write asks, the spark line gives its keys to
+the chooser: `↑`/`↓` walk the whole list — the essays in progress and the
+sparks are one list, so no separate key crosses between them — `enter` takes
+the highlighted one, `esc` changes your mind.
 
 **The Shelf.** `←`/`→` between columns, `↑`/`↓` down a column, `enter` opens
-what is selected (a spark starts an essay only while the slot is free), `cmd-d`
+what is selected (a spark starts an essay only while fewer than three are in
+progress), `cmd-d`
 the shelved drawer, `cmd-o` the data folder in Finder, `esc` or `cmd-l` back to
 Today.
 

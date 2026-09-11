@@ -45,10 +45,13 @@ Spark  →  Draft (free writing)  →  Editing  →  Published
 Every essay lives in exactly one of these states. The app always knows what
 comes next and suggests that step.
 
-**An opinionated simplification: only one essay in progress (WIP limit = 1).**
-A new one cannot be started until the current one is published or deliberately
-shelved. This removes procrastination-by-choice and the graveyard of ten
-half-started drafts. Sparks are unlimited — the essay in progress is one.
+**An opinionated simplification: at most three essays in progress (WIP limit
+= 3).** A fourth cannot be started until one of the three is published or
+deliberately shelved. The limit removes procrastination-by-choice and the
+graveyard of ten half-started drafts; three rather than one because an essay
+that has gone cold needs somewhere to wait, and burying it was the only thing
+a single slot allowed. Sparks are unlimited — the essays in progress are
+three.
 
 ---
 
@@ -118,9 +121,9 @@ Three in total.
 
 ### 3. The Shelf
 Three columns: **Sparks | In progress | Published**. An essay can be started
-from a spark (if the "in progress" slot is free); published ones show their
-dates and links. Separately, a collapsed drawer for what was deliberately set
-aside.
+from a spark (while fewer than three are in progress); "In progress" holds up
+to three, most recently worked first; published ones show their dates and
+links. Separately, a collapsed drawer for what was deliberately set aside.
 
 ### The first week with the app
 - **Day 1.** Open it — the app asks for 3–5 sparks (the only onboarding). Pick
@@ -131,7 +134,7 @@ aside.
 - **Days 5–6.** A session in Editing mode: cut, rearranged. A second pass —
   cleaned up.
 - **Day 7.** Press Publish, paste the text into the blog, save the link. The
-  first essay is on the shelf. The "in progress" slot is free, and five sparks
+  first essay is on the shelf. All three lanes are free again, and five sparks
   are waiting in the box.
 
 ---
@@ -164,7 +167,7 @@ Deliberately NOT built — and why:
 |---|---|
 | AI (generation, suggestions, rewriting) | The habit forms only through your own writing; AI text devalues the practice |
 | Formatting toolbars, styles, fonts | Fiddling with appearance is the favourite procrastination; markdown-lite is enough |
-| Folders, tags, nesting | With one essay in progress and a flat spark box there is nothing to organise |
+| Folders, tags, nesting | With three essays in progress and a flat spark box there is nothing to organise |
 | Social features, comments, in-app sharing | Publishing happens outside, in a real blog; an in-app social network is a trap |
 | Word/day statistics, graphs | The only metrics are sessions and what got published; the rest is vanity |
 | Settings and customization at launch | Every setting is a way not to write |
@@ -204,11 +207,16 @@ mechanics goes through its own OpenSpec change.
 - **Export — closed, both are needed.** The completion panel has both "Copy as
   markdown" and "Save to a file…". Both turned out cheap, so there was nothing
   to choose between.
-- **How hard the WIP limit is — it stays hard.** One essay in progress, no
-  second slot. If the ban starts to get in the way, it is loosened not with a
-  free second slot but with a **slot with friction**: to start a new essay the
-  current one has to be shelved by an explicit action. That is a sketch of a
-  future change, not a decision.
+- **How hard the WIP limit is — closed, and it stays hard at three.** The ban
+  did get in the way: a stalled essay left only two legal moves, publishing
+  something unfinished or burying it, so the real third move was not writing.
+  The sketch written here — a second slot bought by shelving the current essay
+  — was rejected when it came to it, because it prices every switch in the one
+  currency a writer must not spend. Three plain lanes put the friction at the
+  fourth essay instead, where the graveyard actually starts. The reasoning is
+  in `openspec/changes/archive/*-write-several-essays/design.md` (D1). What
+  would move it again: if three open essays turn out to mean three unfinished
+  ones, the limit comes back down — it is one constant.
 - **Editing backwards in Writing mode — stays merely awkward.** There will be
   no mechanical ban on the cursor: dimming the text above the current line does
   the job, and a hard ban would break the small things people go back for — a

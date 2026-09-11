@@ -58,8 +58,9 @@ hand or pulldown-cmark used for parsing only). Prototype code lives in
 ## Stage 1 — App skeleton, data model, spark box (~1 week)
 
 - The domain model: `Spark`, `Essay` (states Draft → Editing → Published /
-  Shelved), `Session`. **The WIP = 1 invariant lives in the storage layer**,
-  not in the UI.
+  Shelved), `Session`. **The WIP invariant lives in the storage layer**, not
+  in the UI (one essay at a time when this was written; three since the
+  write-several-essays change, enforced in the same one place).
 - Storage — plain files in the data directory: `essays/<slug>.md` with TOML
   front matter (status, dates, publication link); sparks and sessions as JSONL.
   Human-readable, survives any refactoring, syncs with anything; SQLite only if
@@ -98,8 +99,9 @@ possible.
   trivial, so both are done; plus the "publication link" field) or deliberately
   **shelved**.
 - The Shelf screen: Sparks | In progress | Published, plus the collapsed
-  drawer. An essay can be started from a spark only while the slot is free.
-- The WIP slot is freed on publishing or shelving.
+  drawer. An essay can be started from a spark only while there is room under
+  the WIP limit.
+- Publishing or shelving makes room for another essay.
 
 **From this point the app fully does its job** — the concept's "first week" can
 be lived through for real.
@@ -132,7 +134,7 @@ were revisited against live experience and became decisions. The details are in
 | Question | Decision after dogfooding |
 |---|---|
 | Framework | **gpui** — decided at stage 0, every criterion met |
-| How hard the WIP limit is | Stays hard. If it starts to get in the way — a second slot with friction (the current essay explicitly shelved), as its own change |
+| How hard the WIP limit is | Stays hard, at three. It did get in the way at one; the sketched "slot with friction" was rejected for pricing every switch in a shelved essay (write-several-essays, D1) |
 | Export | Both copying and a file — both built, question closed |
 | Editing backwards in Writing mode | Stays merely awkward; no mechanical ban needed |
 | Launch speed | ~0.5–0.8 s cold, ~0.15 s warm — inside the one-second budget, no companion window for sparks needed |

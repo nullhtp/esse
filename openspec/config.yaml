@@ -20,10 +20,13 @@ context: |
   Every essay is in exactly one of these states. The app always knows the next
   step and suggests it.
 
-  HARD INVARIANT: WIP limit = 1. At most one essay is in progress at any time.
-  A new essay cannot be started until the current one is published or
+  HARD INVARIANT: WIP limit = 3. At most three essays are in progress at any
+  time. A fourth cannot be started until one of the three is published or
   deliberately shelved. Sparks are unlimited; work-in-progress essays are not.
-  Start strict — loosening is easier than tightening later.
+  The limit is enforced in the storage layer, never in the UI, and is compiled
+  in rather than configurable — a limit that can be raised from a settings
+  screen is not a limit. It was 1 until the write-several-essays change, which
+  loosened it to 3 and wrote down why; do not propose loosening it further.
 
   ## The five mechanics
 
