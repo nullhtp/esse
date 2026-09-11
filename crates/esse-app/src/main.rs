@@ -13,6 +13,7 @@ mod help;
 mod keymap;
 mod line_input;
 mod root;
+mod screen;
 mod shelf;
 mod summon;
 mod theme;

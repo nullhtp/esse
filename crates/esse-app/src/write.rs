@@ -19,6 +19,7 @@ use crate::autosave::Autosave;
 use crate::data::Data;
 use crate::editor::{EditorStyle, EditorView, Edited, Viewport};
 use crate::fonts;
+use crate::screen;
 use crate::theme;
 
 actions!(write, [Leave, Switch]);
@@ -187,12 +188,18 @@ impl Focusable for WriteView {
 impl Render for WriteView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let (elapsed, colour) = self.indicator();
+        // The room has the whole screen, and the top of a screen with a camera
+        // housing in it is not a place to put anything (screen.rs). The paper
+        // still runs edge to edge; what the strip moves is what is written on
+        // it — the text below, and the pinned corner with it.
+        let strip = screen::top_strip();
 
         div()
             .key_context(crate::keymap::WRITE)
             .relative()
             .size_full()
             .bg(rgb(theme::write::BACKGROUND))
+            .pt(strip)
             .on_action(cx.listener(Self::leave))
             .on_action(cx.listener(Self::switch))
             .child(self.editor.clone())
@@ -202,7 +209,7 @@ impl Render for WriteView {
                 div()
                     .id("switch")
                     .absolute()
-                    .top(px(theme::CORNER_TOP))
+                    .top(strip + px(theme::CORNER_TOP))
                     .right(px(theme::CORNER_SIDE))
                     .text_size(px(theme::LABEL_SIZE))
                     .font_weight(fonts::MEDIUM)

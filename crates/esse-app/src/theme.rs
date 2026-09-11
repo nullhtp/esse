@@ -150,10 +150,13 @@ pub const EDITOR_MEASURE: f32 = 680.;
 pub const EDITOR_PADDING: f32 = 48.;
 /// The page's margin above the first line and below the last, in the scrolled
 /// room. Edit mode fills the display borderlessly (fullscreen-rooms design.md,
-/// D1), so the window's top edge is the screen's: without this the first line
-/// of the essay rests against it, under the corner controls and behind the
-/// notch strip on the machines that have one. Deeper than both of those, so
-/// the text sits on the screen like a page rather than running off it.
+/// D1), so without this the first line of the essay would rest against the top
+/// of the room — where the corner controls are, and hard against the edge of
+/// the paper. Deeper than [`CORNER_TOP`] and the label under it, so the text
+/// starts below them.
+///
+/// This is the margin inside the room; keeping the room itself out of the
+/// screen's own top strip is `screen.rs`'s job, and the two stack.
 pub const EDITOR_MARGIN: f32 = 44.;
 
 /// Headings are larger, and stay larger while the cursor is on them —

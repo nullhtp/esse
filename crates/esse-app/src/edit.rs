@@ -29,6 +29,7 @@ use crate::editor::{Edited, EditorStyle, EditorView, Viewport};
 use crate::fonts;
 use crate::keymap;
 use crate::line_input::LineInput;
+use crate::screen;
 use crate::theme;
 
 actions!(
@@ -542,11 +543,15 @@ impl Render for EditView {
             None => None,
         };
 
+        // The same strip the other room keeps out of (screen.rs, write.rs).
+        let strip = screen::top_strip();
+
         div()
             .key_context(keymap::EDIT)
             .relative()
             .size_full()
             .bg(rgb(theme::edit::BACKGROUND))
+            .pt(strip)
             .on_action(cx.listener(Self::leave))
             .on_action(cx.listener(Self::switch))
             .on_action(cx.listener(Self::finish_pressed))
@@ -560,7 +565,7 @@ impl Render for EditView {
                 // D3, D2).
                 div()
                     .absolute()
-                    .top(px(theme::CORNER_TOP))
+                    .top(strip + px(theme::CORNER_TOP))
                     .right(px(theme::CORNER_SIDE))
                     .flex()
                     .gap(px(theme::SPACE_L))
