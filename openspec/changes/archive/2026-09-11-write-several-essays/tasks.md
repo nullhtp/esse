@@ -50,5 +50,5 @@
 
 - [x] 8.1 Run `make test` and fix what falls over.
 - [x] 8.2 Run `cargo clippy --all-targets` and `cargo fmt --check`. (Both were already dirty before this change and are no dirtier after: 59 rustfmt hunks across 20 files either way, and the four clippy warnings are all in code this change does not touch. Left alone rather than reformatting the repo inside this diff.)
-- [ ] 8.3 Hand Anton the scenarios to try by hand: open three essays, switch between them from the chooser and from the Shelf, hit the wall at the fourth, publish one and start another, and confirm `enter` alone still lands in the last essay.
-- [ ] 8.4 Run `openspec validate write-several-essays --strict` and archive the change once the scenarios pass.
+- [x] 8.3 Hand Anton the scenarios to try by hand: open three essays, switch between them from the chooser and from the Shelf, hit the wall at the fourth, publish one and start another, and confirm `enter` alone still lands in the last essay.
+- [x] 8.4 Run `openspec validate write-several-essays --strict` and archive the change once the scenarios pass.
