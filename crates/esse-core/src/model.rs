@@ -53,6 +53,14 @@ pub struct Session {
     pub duration_min: u32,
 }
 
+/// How many essays may be in progress at once.
+///
+/// Three is a mechanic, not a capacity: the wall at the fourth essay is what
+/// keeps "I will just start another one" costing something, which is the whole
+/// reason the limit exists. It is compiled in on purpose — a limit that can be
+/// raised from a settings screen is not a limit (design.md, D1 and D2).
+pub const WIP_LIMIT: usize = 3;
+
 /// Where an essay is in the pipeline. Draft and Editing are the two halves of
 /// being in progress; Published and Shelved are both endings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,7 +72,7 @@ pub enum EssayStatus {
 }
 
 impl EssayStatus {
-    /// Whether the essay occupies the single work-in-progress slot.
+    /// Whether the essay is one of the [`WIP_LIMIT`] that may be open at once.
     pub fn is_in_progress(self) -> bool {
         matches!(self, EssayStatus::Draft | EssayStatus::Editing)
     }
@@ -124,7 +132,7 @@ pub struct Essay {
 
 impl Essay {
     /// A new essay, in Draft. Only `EssayStore::create` calls this, so the
-    /// WIP = 1 check cannot be walked around.
+    /// WIP check cannot be walked around.
     pub(crate) fn draft(slug: String, spark: Option<String>) -> Self {
         let created_at = now();
         Essay {

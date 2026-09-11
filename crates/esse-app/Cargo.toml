@@ -27,3 +27,6 @@ objc2-foundation.workspace = true
 
 [dev-dependencies]
 font-kit.workspace = true
+# The chooser is assembled from real essays: the only way to make one is
+# through the store, which is the point of the WIP guard.
+tempfile.workspace = true

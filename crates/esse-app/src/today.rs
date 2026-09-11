@@ -3,10 +3,15 @@
 //! already published and the dotted line of the days they were written on.
 //!
 //! The screen owns no routing. Pressing Write says so and nothing more — the
-//! router decides whether that continues an essay or asks for a spark, and
-//! hands the answer back through [`TodayView::offer_sparks`] and
-//! [`TodayView::say`]. That is what keeps "the button carries no other
-//! behavior" (today-screen spec) true in the code and not just on paper.
+//! router reads what is in progress and hands the answer back through
+//! [`TodayView::offer_choices`] and [`TodayView::say`]. That is what keeps
+//! "the button carries no other behavior" (today-screen spec) true in the
+//! code and not just on paper.
+//!
+//! Write always opens the chooser: the essays in progress first, the sparks
+//! below them (design.md, D4). With nothing in progress that is the spark
+//! list exactly as it has always been, which is why the two cases share one
+//! list rather than branching into two screens.
 //!
 //! The two lower sections are read-only and quiet on purpose: neither can be
 //! started from, opened, or counted, and both vanish when they have nothing to
@@ -16,7 +21,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use chrono::{Local, NaiveDate};
-use esse_core::{Essay, Spark};
+use esse_core::{Essay, EssayStatus, Spark, WIP_LIMIT};
 use gpui::{
     actions, div, prelude::*, px, rgb, AnyElement, App, Context, Entity, EventEmitter, FocusHandle,
     Focusable, SharedString, Subscription, Window,
@@ -24,7 +29,7 @@ use gpui::{
 
 use crate::calendar;
 use crate::data::Data;
-use crate::essay::title;
+use crate::essay::{limit_in_words, title};
 use crate::fonts;
 use crate::keymap;
 use crate::line_input::{LineInput, Submitted};
@@ -42,23 +47,39 @@ pub enum TodayEvent {
     Write,
     /// A spark was chosen to start an essay from.
     Start(String),
+    /// An essay in progress was chosen to carry on with, by slug.
+    Continue(String),
     /// The Shelf was asked for.
     Shelf,
+}
+
+/// One entry in the work chooser. Built fresh from the two lists every time
+/// it is needed, so the highlight, the click and the keyboard can never come
+/// to point at different things.
+enum Choice<'a> {
+    Continue(&'a Essay),
+    Start(&'a Spark),
 }
 
 pub struct TodayView {
     data: Rc<Data>,
     /// Newest first, as the list shows them.
     sparks: Vec<Spark>,
+    /// The essays in progress, most recently worked first — handed over by
+    /// the router when the chooser opens, and empty the rest of the time.
+    /// Today reads no essays of its own beyond the published ones.
+    open: Vec<Essay>,
     /// Newest published first, as the row shows them.
     published: Vec<Essay>,
     /// The days at least one session started on — the filled dots.
     days_written: HashSet<NaiveDate>,
     input: Entity<LineInput>,
-    /// The list is waiting for a spark to be chosen.
+    /// The list is waiting for an essay or a spark to be chosen.
     picking: bool,
-    /// Which spark the choice is on, while one is being chosen. An index into
-    /// `sparks`, which is newest first — so it starts at the newest.
+    /// Which entry the choice is on, while one is being made. An index into
+    /// [`TodayView::choices`] — the essays in progress, then the sparks — so
+    /// it starts on the essay last written in, or on the newest spark when
+    /// nothing is in progress.
     highlight: usize,
     /// Focus while choosing. The capture line gives it up for as long as the
     /// choice is open and takes it back on the way out (start-from-spark spec).
@@ -83,6 +104,7 @@ impl TodayView {
         let mut view = TodayView {
             data,
             sparks: Vec::new(),
+            open: Vec::new(),
             published: Vec::new(),
             days_written: HashSet::new(),
             input,
@@ -108,10 +130,14 @@ impl TodayView {
         cx.notify();
     }
 
-    /// The slot is free and there are sparks: let the writer choose one. The
-    /// choice takes focus, so the arrows and Enter mean the list rather than
-    /// the capture line, and the newest spark is the one under the highlight.
-    pub fn offer_sparks(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// Write was pressed: let the writer choose what to work on. `open` is
+    /// what the router just found in progress, most recently worked first.
+    ///
+    /// The choice takes focus, so the arrows and Enter mean the list rather
+    /// than the capture line, and the highlight starts on the first entry —
+    /// the essay last written in, or the newest spark when nothing is open.
+    pub fn offer_choices(&mut self, open: Vec<Essay>, window: &mut Window, cx: &mut Context<Self>) {
+        self.open = open;
         self.picking = true;
         self.highlight = 0;
         self.notice = None;
@@ -119,7 +145,21 @@ impl TodayView {
         cx.notify();
     }
 
-    /// Whether a spark is being chosen — which is a different room to be told
+    /// The line above the chooser: what there is to choose between, said
+    /// plainly. Enter alone does the first thing on the list, which is why
+    /// each of these names it.
+    fn prompt(&self) -> &'static str {
+        match (self.open.is_empty(), self.has_room()) {
+            // Nothing started yet: the chooser is the spark list it always was.
+            (true, _) => "Which spark to start from? Pick one from the list.",
+            (false, true) => {
+                "Carry on where you left off, or start a new essay from a spark below."
+            }
+            (false, false) => "Carry on where you left off. The top one is where you were last.",
+        }
+    }
+
+    /// Whether a choice is being made — which is a different room to be told
     /// the shortcuts of (shortcut-help spec).
     pub fn is_choosing(&self) -> bool {
         self.picking
@@ -136,12 +176,26 @@ impl TodayView {
 
     /// Leave the choosing state, whatever ended it. The capture line takes the
     /// keys back the moment the choice is gone, so no keystroke ever falls
-    /// through to a list that is no longer on screen.
+    /// through to a list that is no longer on screen. The essays go with it:
+    /// at rest Today shows the sparks and the showcase, nothing in progress.
     fn stop_choosing(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.open.clear();
         if self.picking {
             self.picking = false;
             window.focus(&self.input.read(cx).focus_handle(cx), cx);
         }
+    }
+
+    /// What the chooser offers, in the order it shows them.
+    fn choices(&self) -> Vec<Choice<'_>> {
+        choices(&self.open, &self.sparks, self.has_room())
+    }
+
+    /// Whether another essay can be started. The count is the router's, read
+    /// from the disk when Write was pressed; the storage layer is still the
+    /// one that refuses (essay-lifecycle spec).
+    fn has_room(&self) -> bool {
+        self.open.len() < WIP_LIMIT
     }
 
     fn reload(&mut self) {
@@ -235,23 +289,31 @@ impl TodayView {
         cx.emit(TodayEvent::Shelf);
     }
 
-    // -- choosing a spark --------------------------------------------------
+    // -- choosing what to work on ------------------------------------------
 
+    /// The arrows walk the whole chooser, essays and sparks alike: the two
+    /// sections are one list, so crossing between them takes no separate key
+    /// (start-from-spark spec).
     fn previous(&mut self, _: &Previous, _: &mut Window, cx: &mut Context<Self>) {
         self.highlight = self.highlight.saturating_sub(1);
         cx.notify();
     }
 
     fn next(&mut self, _: &Next, _: &mut Window, cx: &mut Context<Self>) {
-        self.highlight = (self.highlight + 1).min(self.sparks.len().saturating_sub(1));
+        self.highlight = (self.highlight + 1).min(self.choices().len().saturating_sub(1));
         cx.notify();
     }
 
-    /// Enter starts from the highlighted spark through the very event a click
-    /// on it emits, so the two ways in cannot mean different things.
+    /// Enter acts on the highlighted entry through the very event a click on
+    /// it emits, so the two ways in cannot mean different things.
     fn choose(&mut self, _: &Choose, _: &mut Window, cx: &mut Context<Self>) {
-        if let Some(spark) = self.sparks.get(self.highlight) {
-            cx.emit(TodayEvent::Start(spark.id.clone()));
+        let chosen = match self.choices().get(self.highlight) {
+            Some(Choice::Continue(essay)) => Some(TodayEvent::Continue(essay.slug.clone())),
+            Some(Choice::Start(spark)) => Some(TodayEvent::Start(spark.id.clone())),
+            None => None,
+        };
+        if let Some(event) = chosen {
+            cx.emit(event);
         }
     }
 
@@ -323,7 +385,7 @@ impl TodayView {
 
     fn list(&self, cx: &mut Context<Self>) -> AnyElement {
         let mut list = div()
-            .id("sparks")
+            .id("choices")
             .flex_1()
             // The list gives way to the showcase below rather than pushing it
             // off the screen; what does not fit scrolls.
@@ -334,6 +396,37 @@ impl TodayView {
             .flex_col()
             .text_size(px(theme::BODY_SIZE))
             .line_height(px(theme::BODY_SIZE * theme::LINE_SPACING));
+
+        // Two sections need naming; a bare spark list never did, and gets no
+        // heading it did not have before.
+        let sectioned = !self.open.is_empty();
+        if sectioned {
+            list = list
+                .child(heading("In progress"))
+                .children(self.open.iter().enumerate().map(|(index, essay)| {
+                    let slug = essay.slug.clone();
+                    pickable(self.row(index))
+                        .child(SharedString::from(title(essay)))
+                        .child(state_line(essay))
+                        .on_click(cx.listener(move |_, _, _, cx| {
+                            cx.emit(TodayEvent::Continue(slug.clone()))
+                        }))
+                }))
+                .child(heading("Sparks"))
+                // The one line that says why the sparks below are quiet
+                // (design.md, D5). It appears at the wall and nowhere else.
+                .children((!self.has_room()).then(|| {
+                    div()
+                        .pb(px(theme::SPACE_S))
+                        .text_size(px(theme::SMALL_SIZE))
+                        .text_color(rgb(theme::MUTED))
+                        .child(SharedString::from(format!(
+                            "{} essays are open — the most esse keeps going at once. \
+                             Publish or shelve one, and the next spark can start.",
+                            limit_in_words()
+                        )))
+                }));
+        }
 
         // The ask, when it is up, already says what an empty box means; the
         // screen does not say it twice.
@@ -346,24 +439,21 @@ impl TodayView {
             );
         }
 
-        let picking = self.picking;
-        let highlight = self.highlight;
+        // Sparks start an essay only while there is room for one; at rest the
+        // list is something to look at, as it has always been.
+        let offered = self.picking && self.has_room();
+        let first_spark = self.open.len();
         let list = list.children(self.sparks.iter().enumerate().map(|(index, spark)| {
             let id = spark.id.clone();
             let row = div()
                 .id(SharedString::from(spark.id.clone()))
                 .py(px(theme::SPACE_S))
                 .child(SharedString::from(spark.text.clone()));
-            if picking {
-                row.px(px(theme::SPACE_S))
-                    .ml(px(-theme::SPACE_S))
-                    .rounded(px(theme::RADIUS))
-                    .when(index == highlight, |row| row.bg(rgb(theme::HIGHLIGHT)))
-                    .cursor_pointer()
-                    .hover(|style| style.bg(rgb(theme::HIGHLIGHT)))
-                    .on_click(
-                        cx.listener(move |_, _, _, cx| cx.emit(TodayEvent::Start(id.clone()))),
-                    )
+            if offered {
+                pickable(row.when(self.highlight == first_spark + index, |row| {
+                    row.bg(rgb(theme::HIGHLIGHT))
+                }))
+                .on_click(cx.listener(move |_, _, _, cx| cx.emit(TodayEvent::Start(id.clone()))))
             } else {
                 row
             }
@@ -372,11 +462,24 @@ impl TodayView {
         // The list only takes focus while there is a choice to make: at rest
         // the capture line owns the screen's keys, and a click anywhere must
         // not take them off it (today-screen spec).
-        if picking {
+        if self.picking {
             list.track_focus(&self.choice_focus).into_any_element()
         } else {
             list.into_any_element()
         }
+    }
+
+    /// A row of the chooser, carrying the highlight when it is the one the
+    /// keyboard is on.
+    fn row(&self, index: usize) -> gpui::Stateful<gpui::Div> {
+        div()
+            .id(SharedString::from(format!("choice-{index}")))
+            .py(px(theme::SPACE_S))
+            .flex()
+            .flex_col()
+            .when(self.highlight == index, |row| {
+                row.bg(rgb(theme::HIGHLIGHT))
+            })
     }
 
     // -- what the writing has come to -------------------------------------
@@ -466,6 +569,55 @@ impl TodayView {
     }
 }
 
+/// What the chooser offers, in the order it shows them: the essays in
+/// progress, then the sparks — and the sparks only while there is room to
+/// start another essay (design.md, D5).
+///
+/// One flat list is what lets the arrows cross from the essays into the
+/// sparks without a key of their own, and what makes the highlight's index
+/// mean the same thing to the keyboard and to the rendering.
+fn choices<'a>(open: &'a [Essay], sparks: &'a [Spark], has_room: bool) -> Vec<Choice<'a>> {
+    let mut choices: Vec<Choice<'a>> = open.iter().map(Choice::Continue).collect();
+    if has_room {
+        choices.extend(sparks.iter().map(Choice::Start));
+    }
+    choices
+}
+
+/// A row the writer can act on: the same padding, rounding and hover
+/// wherever the chooser offers something.
+fn pickable(row: gpui::Stateful<gpui::Div>) -> gpui::Stateful<gpui::Div> {
+    row.px(px(theme::SPACE_S))
+        .ml(px(-theme::SPACE_S))
+        .rounded(px(theme::RADIUS))
+        .cursor_pointer()
+        .hover(|style| style.bg(rgb(theme::HIGHLIGHT)))
+}
+
+/// A section heading inside the chooser, in the same quiet register as the
+/// Shelf's column headings.
+fn heading(text: &'static str) -> impl IntoElement {
+    div()
+        .pt(px(theme::SPACE_S))
+        .pb(px(theme::SPACE_XS))
+        .text_size(px(theme::LABEL_SIZE))
+        .font_weight(fonts::MEDIUM)
+        .text_color(rgb(theme::MUTED))
+        .child(theme::label(text))
+}
+
+/// Which room an essay would open in, said in the word the editor uses.
+fn state_line(essay: &Essay) -> impl IntoElement {
+    div()
+        .pt(px(theme::SPACE_XS - 2.))
+        .text_size(px(theme::SMALL_SIZE))
+        .text_color(rgb(theme::MUTED))
+        .child(match essay.status() {
+            EssayStatus::Draft => "draft",
+            _ => "editing",
+        })
+}
+
 /// A published card: wide enough for a few words of a title, narrow enough
 /// that the row reads as a shelf of finished things rather than a list.
 const CARD_WIDTH: f32 = 176.;
@@ -534,7 +686,7 @@ impl Render for TodayView {
                             .pt(px(theme::SPACE_M))
                             .text_size(px(theme::SMALL_SIZE))
                             .text_color(rgb(theme::MUTED))
-                            .child("Which spark to start from? Pick one from the list.")
+                            .child(self.prompt())
                     }))
                     .children(self.notice.clone().map(|text| {
                         div()
@@ -555,5 +707,94 @@ impl Render for TodayView {
                     .child(list)
                     .children(showcase),
             )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use esse_core::{DataDir, EssayStore};
+    use tempfile::TempDir;
+
+    /// What the entry would do, in a word a test can compare.
+    fn labels(choices: &[Choice<'_>]) -> Vec<String> {
+        choices
+            .iter()
+            .map(|choice| match choice {
+                Choice::Continue(essay) => format!("continue {}", essay.slug),
+                Choice::Start(spark) => format!("start {}", spark.text),
+            })
+            .collect()
+    }
+
+    /// Essays in progress, made the only way there is — through the store,
+    /// which is what keeps the limit unbypassable (essay-lifecycle spec).
+    fn open(slugs: &[&str]) -> (TempDir, Vec<Essay>) {
+        let temp = TempDir::new().unwrap();
+        let dir = DataDir::at(temp.path().join("esse")).unwrap();
+        let store = EssayStore::new(&dir);
+        let essays = slugs
+            .iter()
+            .map(|slug| store.create(slug, None).unwrap())
+            .collect();
+        (temp, essays)
+    }
+
+    fn sparks(texts: &[&str]) -> Vec<Spark> {
+        texts.iter().map(Spark::new).collect()
+    }
+
+    #[test]
+    fn the_chooser_puts_the_open_essays_above_the_sparks() {
+        let (_temp, open) = open(&["backpack", "habits"]);
+        let sparks = sparks(&["reading slowly"]);
+
+        assert_eq!(
+            labels(&choices(&open, &sparks, true)),
+            [
+                "continue backpack",
+                "continue habits",
+                "start reading slowly"
+            ]
+        );
+    }
+
+    /// With nothing started, the chooser is the spark list it has always been
+    /// — no section it does not need, and Enter starts from the newest idea.
+    #[test]
+    fn with_nothing_open_the_chooser_is_the_spark_list() {
+        let sparks = sparks(&["reading slowly", "silence"]);
+
+        assert_eq!(
+            labels(&choices(&[], &sparks, true)),
+            ["start reading slowly", "start silence"]
+        );
+    }
+
+    /// Three open: the sparks are there to look at, and the chooser is still
+    /// not a dead end — the essays can be carried on with.
+    #[test]
+    fn a_full_conveyor_offers_the_essays_alone() {
+        let (_temp, open) = open(&["backpack", "habits", "silence"]);
+        let sparks = sparks(&["reading slowly"]);
+
+        assert_eq!(
+            labels(&choices(&open, &sparks, false)),
+            ["continue backpack", "continue habits", "continue silence"]
+        );
+    }
+
+    /// The index the arrows move through is one list, so the step off the
+    /// last essay lands on the newest spark with no key of its own — and it
+    /// is the same index the rendering highlights.
+    #[test]
+    fn the_arrows_cross_from_the_essays_into_the_sparks() {
+        let (_temp, open) = open(&["backpack"]);
+        let sparks = sparks(&["reading slowly", "silence"]);
+        let choices = choices(&open, &sparks, true);
+
+        assert_eq!(labels(&choices)[open.len()], "start reading slowly");
+        assert_eq!(choices.len(), open.len() + sparks.len());
     }
 }

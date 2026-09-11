@@ -17,9 +17,10 @@ const MAX_ATTEMPTS: u32 = 99;
 
 /// Starts an essay from the spark with this id, consuming the spark.
 ///
-/// The WIP = 1 refusal comes straight from [`EssayStore::create`] and is passed
+/// The WIP refusal comes straight from [`EssayStore::create`] and is passed
 /// through untouched — this is not a second way to create an essay, it is the
-/// same one with a spark attached.
+/// same one with a spark attached. It is refused before the spark is removed,
+/// so a start that hits the limit leaves the idea in the box.
 pub fn start_essay_from_spark(
     sparks: &SparkStore,
     essays: &EssayStore,
@@ -40,7 +41,7 @@ pub fn start_essay_from_spark(
 }
 
 /// Creates the essay under the derived slug, or the first free `-2`, `-3`, …
-/// variant of it. Every other refusal — a taken slot above all — comes back
+/// variant of it. Every other refusal — a full conveyor above all — comes back
 /// as it is.
 fn create_with_free_slug(essays: &EssayStore, spark_text: &str) -> Result<Essay> {
     let base = derive_slug(spark_text);

@@ -1,12 +1,12 @@
 //! The on-disk layer: the data directory, the two JSONL files, and the essay
-//! file format with its WIP = 1 invariant.
+//! file format with its WIP limit.
 
 use std::fs;
 
 use esse_core::model::now;
 use esse_core::{
     publish, shelve, start_essay_from_spark, DataDir, Error, EssayStatus, EssayStore, Session,
-    SessionStore, SparkStore,
+    SessionStore, SparkStore, WIP_LIMIT,
 };
 use tempfile::TempDir;
 
@@ -186,6 +186,11 @@ mood = \"stubborn\"
 Первый абзац.
 ";
 
+/// The slugs of a column, in the order the store handed them over.
+fn slugs(essays: Vec<esse_core::Essay>) -> Vec<String> {
+    essays.into_iter().map(|essay| essay.slug).collect()
+}
+
 fn write_by_hand(store: &EssayStore, slug: &str, content: &str) {
     fs::create_dir_all(store.dir()).unwrap();
     fs::write(store.path(slug), content).unwrap();
@@ -256,52 +261,114 @@ fn a_created_essay_starts_as_a_draft_with_its_spark() {
 }
 
 #[test]
-fn a_second_essay_is_refused_while_one_is_in_progress() {
+fn three_essays_can_be_in_progress_at_once() {
     let (_temp, dir) = data_dir();
     let store = EssayStore::new(&dir);
-    store.create("first", None).unwrap();
 
-    let error = store.create("second", None).unwrap_err();
+    for slug in ["first", "second", "third"] {
+        assert_eq!(
+            store.create(slug, None).unwrap().status(),
+            EssayStatus::Draft
+        );
+    }
+
+    assert_eq!(slugs(store.in_progress().unwrap()).len(), WIP_LIMIT);
+    assert_eq!(store.load_all().unwrap().len(), WIP_LIMIT);
+}
+
+#[test]
+fn a_fourth_essay_is_refused() {
+    let (_temp, dir) = data_dir();
+    let store = EssayStore::new(&dir);
+    for slug in ["first", "second", "third"] {
+        store.create(slug, None).unwrap();
+    }
+
+    let error = store.create("fourth", None).unwrap_err();
 
     match error {
-        Error::EssayInProgress { slug, status } => {
-            assert_eq!(slug, "first");
-            assert_eq!(status, EssayStatus::Draft);
-        }
-        other => panic!("expected the in-progress essay to be named: {other}"),
+        Error::TooManyInProgress { limit } => assert_eq!(limit, WIP_LIMIT),
+        other => panic!("expected the limit to be named: {other}"),
     }
     // Nothing was created.
-    assert!(!store.path("second").exists());
-    assert_eq!(store.load_all().unwrap().len(), 1);
+    assert!(!store.path("fourth").exists());
+    assert_eq!(store.load_all().unwrap().len(), WIP_LIMIT);
 }
 
 #[test]
-fn editing_also_occupies_the_slot() {
+fn editing_also_counts_against_the_limit() {
     let (_temp, dir) = data_dir();
     let store = EssayStore::new(&dir);
-    let mut essay = store.create("first", None).unwrap();
-    essay.transition_to(EssayStatus::Editing).unwrap();
-    store.save(&essay).unwrap();
+    for slug in ["first", "second", "third"] {
+        let mut essay = store.create(slug, None).unwrap();
+        essay.transition_to(EssayStatus::Editing).unwrap();
+        store.save(&essay).unwrap();
+    }
 
-    assert!(store.create("second", None).is_err());
-    assert_eq!(store.in_progress().unwrap().unwrap().slug, "first");
+    assert!(store.create("fourth", None).is_err());
+    assert_eq!(store.in_progress().unwrap().len(), WIP_LIMIT);
 }
 
 #[test]
-fn the_slot_frees_once_the_essay_is_finished() {
+fn room_returns_once_an_essay_is_finished() {
     for ending in [EssayStatus::Published, EssayStatus::Shelved] {
         let (_temp, dir) = data_dir();
         let store = EssayStore::new(&dir);
+        for slug in ["first", "second", "third"] {
+            store.create(slug, None).unwrap();
+        }
 
-        let mut first = store.create("first", None).unwrap();
+        let mut first = store.load("first").unwrap();
         first.transition_to(ending).unwrap();
         store.save(&first).unwrap();
 
-        assert!(store.in_progress().unwrap().is_none(), "{ending}");
-        let second = store.create("second", None).unwrap();
-        assert_eq!(second.status(), EssayStatus::Draft, "{ending}");
-        assert_eq!(store.load_all().unwrap().len(), 2, "{ending}");
+        // One lane free, and the other two essays untouched.
+        assert_eq!(store.in_progress().unwrap().len(), WIP_LIMIT - 1, "{ending}");
+        let fourth = store.create("fourth", None).unwrap();
+        assert_eq!(fourth.status(), EssayStatus::Draft, "{ending}");
+        assert!(store.create("fifth", None).is_err(), "{ending}");
     }
+}
+
+#[test]
+fn finished_essays_never_count_against_the_limit() {
+    let (_temp, dir) = data_dir();
+    let store = EssayStore::new(&dir);
+
+    // A pile of endings, made one at a time so the limit is never in the way.
+    for slug in ["one", "two", "three", "four", "five"] {
+        let essay = store.create(slug, None).unwrap();
+        if slug.len() % 2 == 0 {
+            publish(&store, essay, None).unwrap();
+        } else {
+            shelve(&store, essay).unwrap();
+        }
+    }
+
+    assert!(store.in_progress().unwrap().is_empty());
+    for slug in ["first", "second", "third"] {
+        store.create(slug, None).unwrap();
+    }
+    assert_eq!(store.in_progress().unwrap().len(), WIP_LIMIT);
+}
+
+#[test]
+fn the_essays_in_progress_come_back_most_recently_worked_first() {
+    let (_temp, dir) = data_dir();
+    let store = EssayStore::new(&dir);
+    for slug in ["first", "second", "third"] {
+        store.create(slug, None).unwrap();
+    }
+
+    // Timestamps are kept at second precision, so three essays created in one
+    // test share theirs. Typing into one is what moves it up the list, and
+    // that is what this says out loud.
+    let mut second = store.load("second").unwrap();
+    second.body = "Текст.\n".to_string();
+    second.updated_at = now() + chrono::Duration::seconds(60);
+    store.save(&second).unwrap();
+
+    assert_eq!(slugs(store.in_progress().unwrap())[0], "second");
 }
 
 #[test]
@@ -328,7 +395,7 @@ fn a_broken_essay_file_is_reported_with_its_path() {
 // -- ending an essay ------------------------------------------------------
 
 #[test]
-fn publishing_records_when_and_where_and_frees_the_slot() {
+fn publishing_records_when_and_where_and_frees_a_lane() {
     let (_temp, dir) = data_dir();
     let store = EssayStore::new(&dir);
     let mut essay = store.create("first", Some("почему эссе")).unwrap();
@@ -345,7 +412,7 @@ fn publishing_records_when_and_where_and_frees_the_slot() {
         loaded.publication_url.as_deref(),
         Some("https://example.com/esse")
     );
-    assert!(store.in_progress().unwrap().is_none());
+    assert!(store.in_progress().unwrap().is_empty());
 }
 
 #[test]
@@ -368,7 +435,7 @@ fn publishing_without_a_link_leaves_the_field_out() {
 }
 
 #[test]
-fn shelving_ends_the_essay_and_frees_the_slot() {
+fn shelving_ends_the_essay_and_frees_a_lane() {
     let (_temp, dir) = data_dir();
     let store = EssayStore::new(&dir);
     let essay = store.create("first", None).unwrap();
@@ -378,7 +445,7 @@ fn shelving_ends_the_essay_and_frees_the_slot() {
     assert_eq!(shelved.status(), EssayStatus::Shelved);
     assert_eq!(store.load("first").unwrap().status(), EssayStatus::Shelved);
     assert!(store.published().unwrap().is_empty());
-    assert!(store.in_progress().unwrap().is_none());
+    assert!(store.in_progress().unwrap().is_empty());
 }
 
 #[test]
@@ -492,12 +559,9 @@ fn the_columns_hold_only_what_belongs_in_them() {
     editing.transition_to(EssayStatus::Editing).unwrap();
     store.save(&editing).unwrap();
 
-    let slugs = |essays: Vec<esse_core::Essay>| -> Vec<String> {
-        essays.into_iter().map(|essay| essay.slug).collect()
-    };
     assert_eq!(slugs(store.published().unwrap()), ["published"]);
     assert_eq!(slugs(store.shelved().unwrap()), ["shelved"]);
-    assert_eq!(store.in_progress().unwrap().unwrap().slug, "editing");
+    assert_eq!(slugs(store.in_progress().unwrap()), ["editing"]);
 }
 
 #[test]
@@ -573,21 +637,60 @@ fn the_wip_refusal_passes_through_and_keeps_the_spark() {
     let (_temp, dir) = data_dir();
     let sparks = SparkStore::new(&dir);
     let essays = EssayStore::new(&dir);
-    essays.create("uzhe-pishetsya", None).unwrap();
+    for slug in ["odno", "dva", "tri"] {
+        essays.create(slug, None).unwrap();
+    }
     let spark = sparks.capture("новая мысль").unwrap().unwrap();
 
     let error = start_essay_from_spark(&sparks, &essays, &spark.id).unwrap_err();
 
     match error {
-        Error::EssayInProgress { slug, status } => {
-            assert_eq!(slug, "uzhe-pishetsya");
-            assert_eq!(status, EssayStatus::Draft);
-        }
-        other => panic!("expected the in-progress essay to be named: {other}"),
+        Error::TooManyInProgress { limit } => assert_eq!(limit, WIP_LIMIT),
+        other => panic!("expected the limit to be named: {other}"),
     }
-    // Creation failed, so the spark is still where it was.
+    // Creation failed, so the spark is still where it was — an idea is never
+    // the price of hitting the limit.
     assert_eq!(sparks.load_all().unwrap(), [spark]);
-    assert_eq!(essays.load_all().unwrap().len(), 1);
+    assert_eq!(essays.load_all().unwrap().len(), WIP_LIMIT);
+}
+
+/// Three lanes at once: what ends, ends alone. Publishing one essay must leave
+/// the other two exactly where the writer left them — text, state and all.
+#[test]
+fn ending_one_essay_leaves_the_others_in_progress() {
+    let (_temp, dir) = data_dir();
+    let sparks = SparkStore::new(&dir);
+    let essays = EssayStore::new(&dir);
+
+    let mut started = Vec::new();
+    for text in ["первая мысль", "вторая мысль", "третья мысль"] {
+        let spark = sparks.capture(text).unwrap().unwrap();
+        started.push(start_essay_from_spark(&sparks, &essays, &spark.id).unwrap());
+    }
+    assert_eq!(essays.in_progress().unwrap().len(), WIP_LIMIT);
+
+    // One of them is written into and moved on to editing; another is left as
+    // the bare draft it was.
+    let mut written = essays.load(&started[1].slug).unwrap();
+    written.body = "Текст, который нужно сохранить.\n".to_string();
+    written.transition_to(EssayStatus::Editing).unwrap();
+    essays.save(&written).unwrap();
+
+    publish(&essays, essays.load(&started[0].slug).unwrap(), None).unwrap();
+
+    assert_eq!(essays.in_progress().unwrap().len(), WIP_LIMIT - 1);
+    let still_editing = essays.load(&started[1].slug).unwrap();
+    assert_eq!(still_editing.status(), EssayStatus::Editing);
+    assert_eq!(still_editing.body, "Текст, который нужно сохранить.\n");
+    assert_eq!(
+        essays.load(&started[2].slug).unwrap().status(),
+        EssayStatus::Draft
+    );
+
+    // And the freed lane takes one more.
+    let spark = sparks.capture("четвёртая мысль").unwrap().unwrap();
+    start_essay_from_spark(&sparks, &essays, &spark.id).unwrap();
+    assert_eq!(essays.in_progress().unwrap().len(), WIP_LIMIT);
 }
 
 #[test]

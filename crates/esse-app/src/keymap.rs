@@ -79,12 +79,12 @@ pub static SHORTCUTS: &[Shortcut] = &[
     // the capture line (keyboard-shortcuts spec).
     shortcut!("cmd-enter", today::Write, Scope::In(TODAY), "Write"),
     shortcut!("cmd-l", today::Shelf, Scope::In(TODAY), "Shelf"),
-    // Today, choosing the spark to start from. The capture line does not hold
-    // focus here, so the bare keys are free (design.md, D5).
-    shortcut!("up", today::Previous, Scope::In(CHOOSING), "Spark above"),
-    shortcut!("down", today::Next, Scope::In(CHOOSING), "Spark below"),
-    shortcut!("enter", today::Choose, Scope::In(CHOOSING), "Start from this spark"),
-    shortcut!("escape", today::Cancel, Scope::In(CHOOSING), "Do not start"),
+    // Today, choosing what to work on. The capture line does not hold focus
+    // here, so the bare keys are free (design.md, D5).
+    shortcut!("up", today::Previous, Scope::In(CHOOSING), "The one above"),
+    shortcut!("down", today::Next, Scope::In(CHOOSING), "The one below"),
+    shortcut!("enter", today::Choose, Scope::In(CHOOSING), "Take this one"),
+    shortcut!("escape", today::Cancel, Scope::In(CHOOSING), "Not just now"),
     // The Shelf. Nothing here is typed into, so the arrows are free too.
     shortcut!("left", shelf::Left, Scope::In(SHELF), "Column to the left"),
     shortcut!("right", shelf::Right, Scope::In(SHELF), "Column to the right"),
@@ -150,7 +150,7 @@ pub fn bindings() -> Vec<KeyBinding> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Place {
     Today,
-    ChoosingSpark,
+    Choosing,
     Write,
     Edit,
     Finishing,
@@ -162,7 +162,7 @@ impl Place {
     pub fn title(self) -> &'static str {
         match self {
             Place::Today => "Today",
-            Place::ChoosingSpark => "Which spark to start from",
+            Place::Choosing => "What to work on",
             Place::Write => "Writing",
             Place::Edit => "Editing",
             Place::Finishing => "Finish the essay",
@@ -175,7 +175,7 @@ impl Place {
     fn contexts(self) -> &'static [&'static str] {
         match self {
             Place::Today => &[TODAY],
-            Place::ChoosingSpark => &[CHOOSING],
+            Place::Choosing => &[CHOOSING],
             Place::Write => &[WRITE, EDITOR],
             Place::Edit => &[EDIT, EDITOR],
             Place::Finishing => &[FINISHING],
@@ -207,7 +207,7 @@ mod tests {
 
     const PLACES: [Place; 6] = [
         Place::Today,
-        Place::ChoosingSpark,
+        Place::Choosing,
         Place::Write,
         Place::Edit,
         Place::Finishing,

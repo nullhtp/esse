@@ -13,14 +13,14 @@
 use std::path::Path;
 use std::rc::Rc;
 
-use esse_core::{Essay, EssayStatus, Spark};
+use esse_core::{Essay, EssayStatus, Spark, WIP_LIMIT};
 use gpui::{
     actions, div, prelude::*, px, rgb, App, Context, EventEmitter, FocusHandle, Focusable,
     SharedString, Window,
 };
 
 use crate::data::Data;
-use crate::essay::title;
+use crate::essay::{limit_in_words, title};
 use crate::fonts;
 use crate::keymap;
 use crate::theme;
@@ -35,8 +35,8 @@ pub enum ShelfEvent {
     Left,
     /// A spark was chosen to start an essay from.
     Start(String),
-    /// The card in progress was activated: carry on with that essay.
-    Continue,
+    /// A card in progress was activated: carry on with that essay, by slug.
+    Continue(String),
 }
 
 /// The four lists the screen is made of, read in one go: either the whole
@@ -45,8 +45,9 @@ pub enum ShelfEvent {
 struct Contents {
     /// Newest first, as the column shows them.
     sparks: Vec<Spark>,
-    /// The zero or one essay occupying the slot.
-    in_progress: Option<Essay>,
+    /// The essays in progress, most recently worked first — never more than
+    /// [`WIP_LIMIT`] of them.
+    in_progress: Vec<Essay>,
     /// Newest published first.
     published: Vec<Essay>,
     shelved: Vec<Essay>,
@@ -140,17 +141,17 @@ impl ShelfView {
 
     // -- the highlight -----------------------------------------------------
 
-    /// While an essay is in progress the sparks are a list to look at and
+    /// Once three essays are open the sparks are a list to look at and
     /// nothing more: there is no start to offer (shelf-screen spec).
     fn startable(&self) -> bool {
-        self.contents.in_progress.is_none()
+        self.contents.in_progress.len() < WIP_LIMIT
     }
 
     /// How many cards each column holds, in the order they are drawn.
     fn columns(&self) -> [usize; COLUMNS] {
         [
             self.contents.sparks.len(),
-            usize::from(self.contents.in_progress.is_some()),
+            self.contents.in_progress.len(),
             self.contents.published.len(),
         ]
     }
@@ -185,8 +186,8 @@ impl ShelfView {
     }
 
     /// Enter does to the highlighted card exactly what a click does to it: a
-    /// spark starts an essay while the slot is free, the card in progress
-    /// carries on with it, and a published card offers nothing to either.
+    /// spark starts an essay while there is room, a card in progress carries
+    /// on with that essay, and a published card offers nothing to either.
     fn activate(&mut self, _: &Activate, _: &mut Window, cx: &mut Context<Self>) {
         let Some(spot) = self.highlight else {
             return;
@@ -197,8 +198,10 @@ impl ShelfView {
                     cx.emit(ShelfEvent::Start(spark.id.clone()));
                 }
             }
-            IN_PROGRESS if self.contents.in_progress.is_some() => {
-                cx.emit(ShelfEvent::Continue)
+            IN_PROGRESS => {
+                if let Some(essay) = self.contents.in_progress.get(spot.row) {
+                    cx.emit(ShelfEvent::Continue(essay.slug.clone()));
+                }
             }
             _ => {}
         }
@@ -228,6 +231,20 @@ impl ShelfView {
 
         column("sparks", "Sparks")
             .children(self.contents.sparks.is_empty().then(|| empty("Empty for now")))
+            // Why the sparks below are quiet, said once and only at the wall
+            // (shelf-screen spec, design.md D5).
+            .children((!startable).then(|| {
+                div()
+                    .pb(px(theme::SPACE_S))
+                    .text_size(px(theme::SMALL_SIZE))
+                    .line_height(px(theme::SMALL_SIZE * theme::LINE_SPACING))
+                    .text_color(rgb(theme::MUTED))
+                    .child(SharedString::from(format!(
+                        "{} essays are open — the most esse keeps going at once. \
+                         Publish or shelve one, and the next spark can start.",
+                        limit_in_words()
+                    )))
+            }))
             .children(
                 self.contents
                     .sparks
@@ -253,24 +270,33 @@ impl ShelfView {
             .children(
                 self.contents
                     .in_progress
-                    .is_none()
+                    .is_empty()
                     .then(|| empty("Nothing being written")),
             )
-            .children(self.contents.in_progress.as_ref().map(|essay| {
-                pickable(row(essay.slug.clone(), self.is_on(IN_PROGRESS, 0)))
-                    .child(SharedString::from(title(essay)))
-                    .child(
-                        div()
-                            .pt(px(theme::SPACE_XS - 2.))
-                            .text_size(px(theme::SMALL_SIZE))
-                            .text_color(rgb(theme::MUTED))
-                            .child(match essay.status() {
-                                EssayStatus::Draft => "draft",
-                                _ => "editing",
-                            }),
-                    )
-                    .on_click(cx.listener(|_, _, _, cx| cx.emit(ShelfEvent::Continue)))
-            }))
+            .children(
+                self.contents
+                    .in_progress
+                    .iter()
+                    .enumerate()
+                    .map(|(index, essay)| {
+                        let slug = essay.slug.clone();
+                        pickable(row(essay.slug.clone(), self.is_on(IN_PROGRESS, index)))
+                            .child(SharedString::from(title(essay)))
+                            .child(
+                                div()
+                                    .pt(px(theme::SPACE_XS - 2.))
+                                    .text_size(px(theme::SMALL_SIZE))
+                                    .text_color(rgb(theme::MUTED))
+                                    .child(match essay.status() {
+                                        EssayStatus::Draft => "draft",
+                                        _ => "editing",
+                                    }),
+                            )
+                            .on_click(cx.listener(move |_, _, _, cx| {
+                                cx.emit(ShelfEvent::Continue(slug.clone()))
+                            }))
+                    }),
+            )
     }
 
     fn published_column(&self) -> impl IntoElement {
@@ -570,10 +596,12 @@ mod tests {
 
     #[test]
     fn the_highlight_starts_on_the_first_card_worth_pressing() {
-        // A free slot: the sparks are startable, so the first one it is.
+        // Room for another essay: the sparks are startable, so the first one
+        // it is.
         assert_eq!(first_spot([3, 0, 2], true), spot(SPARKS, 0));
-        // Occupied: the sparks offer nothing, and the essay in progress does.
-        assert_eq!(first_spot([3, 1, 2], false), spot(IN_PROGRESS, 0));
+        assert_eq!(first_spot([3, 2, 2], true), spot(SPARKS, 0));
+        // Three open: the sparks offer nothing, and the essays do.
+        assert_eq!(first_spot([3, 3, 2], false), spot(IN_PROGRESS, 0));
         // Nothing to act on at all: the first column with anything in it.
         assert_eq!(first_spot([0, 0, 2], true), spot(PUBLISHED, 0));
         assert_eq!(first_spot([0, 0, 0], true), None);

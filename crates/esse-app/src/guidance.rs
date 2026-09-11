@@ -99,7 +99,7 @@ fn steps(steps: &'static [&'static str]) -> Vec<impl IntoElement> {
 fn method(place: Place) -> &'static Method {
     match place {
         Place::Today => &TODAY,
-        Place::ChoosingSpark => &CHOOSING_SPARK,
+        Place::Choosing => &CHOOSING,
         Place::Write => &WRITE,
         Place::Edit => &EDIT,
         Place::Finishing => &FINISHING,
@@ -113,7 +113,7 @@ static TODAY: Method = Method {
     lead: "Everything begins again here. One spark, one session — the writing habit grows out of that.",
     steps: &[
         "A thought went by — do not let it leave: one line in the spark box and it is yours. A seed, not a vow.",
-        "Ready — press Write. The app remembers where you stopped, or asks which spark to start from.",
+        "Ready — press Write. It asks what to work on: carry on where you stopped, or start from a spark.",
         "Ahead of you are twenty minutes. Not “write the essay” — just be with the text, and that is enough.",
         "Time is up — leave with a clear head. The session happened, even if the end is still far off.",
         "The day gets a dot below. Missed one — never mind: what counts is not the chain but that you come back.",
@@ -122,13 +122,14 @@ static TODAY: Method = Method {
 
 /// Choosing is the cheap part; deliberating over it is the expensive one
 /// (CONCEPT.md, mechanic 2).
-static CHOOSING_SPARK: Method = Method {
-    lead: "Your thoughts are already here — one of them has to be picked. The choice starts the work, so keep it light.",
+static CHOOSING: Method = Method {
+    lead: "Everything you have started, and everything you could start, in one list. Choosing is quick — keep it that way.",
     steps: &[
-        "Run down the list and take the one your eye stumbles on. That is the one still alive.",
+        "Enter alone takes the top one: the essay you were last writing in. Most days that is the whole decision.",
+        "One has gone cold — leave it be and take another. It keeps its place, and nothing is thrown away by moving on.",
+        "Starting fresh instead: run down the sparks and take the one your eye stumbles on. That one is still alive.",
         "Do not hunt for the most important. A spark becomes important while you write it, not while you pick it.",
-        "Do not fear knowing only part of the topic. Nobody knows it — the text is written in order to understand.",
-        "The chosen spark becomes an essay, the rest wait their turn. One choice does not empty the box.",
+        "Three essays open is the ceiling. Publish or shelve one and the next spark can start — the wall is there to be hit.",
         "Changed your mind — leave without starting. There is no counter of failed attempts here, and never will be.",
     ],
 };
@@ -179,10 +180,10 @@ static SHELF: Method = Method {
     lead: "From here you see it all at once: what waits its turn, what is in the works, what reached people.",
     steps: &[
         "On the left the spark box, freshest on top. While it has something in it, “nothing to write about” is over.",
-        "In the middle, the essay in progress. Always one: one essay reaches the end more often than five do.",
+        "In the middle, what is being written — three at most. Three you can hold in your head; ten become a graveyard.",
         "On the right the published ones, with dates and links. That is your progress, not a word count.",
         "Below, the shelved — set aside deliberately. Rereading is allowed, coming back is not, and that is honest.",
-        "Drawn to another one — finish the current one first. Free hands are earned here, not handed out.",
+        "All three going at once — finish one. Publishing or shelving frees the lane; nothing else does.",
     ],
 };
 
@@ -201,7 +202,7 @@ mod tests {
 
     const PLACES: [Place; 6] = [
         Place::Today,
-        Place::ChoosingSpark,
+        Place::Choosing,
         Place::Write,
         Place::Edit,
         Place::Finishing,

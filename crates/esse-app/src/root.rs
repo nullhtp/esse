@@ -17,6 +17,7 @@ use gpui::{div, prelude::*, App, Context, Entity, FocusHandle, Focusable, Subscr
 
 use crate::data::Data;
 use crate::edit::{EditEvent, EditView};
+use crate::essay::limit_in_words;
 use crate::guidance;
 use crate::help;
 use crate::keymap::Place;
@@ -168,7 +169,7 @@ impl RootView {
     /// state, not the screen it happens to be drawn on (design.md, D3).
     fn place(&self, cx: &App) -> Place {
         match &self.screen {
-            Screen::Today if self.today.read(cx).is_choosing() => Place::ChoosingSpark,
+            Screen::Today if self.today.read(cx).is_choosing() => Place::Choosing,
             Screen::Today => Place::Today,
             Screen::Shelf(_) => Place::Shelf,
             Screen::Write(_) => Place::Write,
@@ -187,6 +188,7 @@ impl RootView {
         match event {
             TodayEvent::Write => self.write_pressed(window, cx),
             TodayEvent::Start(spark_id) => self.start_from_spark(spark_id, window, cx),
+            TodayEvent::Continue(slug) => self.continue_essay(slug, window, cx),
             TodayEvent::Shelf => self.show_shelf(window, cx),
         }
     }
@@ -214,14 +216,16 @@ impl RootView {
         match event {
             ShelfEvent::Left => self.leave_shelf(window, cx),
             ShelfEvent::Start(spark_id) => self.start_from_spark(spark_id, window, cx),
-            // The card is only on screen while an essay is in progress; if it
-            // has ended since, the shelf was looking at a stale disk and is
+            // The card is only on screen while that essay is in progress; if
+            // it has ended since, the shelf was looking at a stale disk and is
             // told to look again.
-            ShelfEvent::Continue => match self.data.essays.in_progress() {
-                Ok(Some(essay)) => self.open_editor(essay, window, cx),
-                Ok(None) => view.update(cx, |shelf, cx| shelf.refresh(cx)),
+            ShelfEvent::Continue(slug) => match self.data.essays.in_progress() {
+                Ok(open) => match open.into_iter().find(|essay| &essay.slug == slug) {
+                    Some(essay) => self.open_editor(essay, window, cx),
+                    None => view.update(cx, |shelf, cx| shelf.refresh(cx)),
+                },
                 Err(error) => {
-                    log::error!("could not look for an essay in progress: {error}");
+                    log::error!("could not look for the essays in progress: {error}");
                     let notice = format!("Cannot read the essays: {error}");
                     view.update(cx, |shelf, cx| shelf.say(notice, cx));
                 }
@@ -237,28 +241,53 @@ impl RootView {
         cx.notify();
     }
 
-    /// The Write button: continue the essay in progress, or ask for a spark to
-    /// start one (start-from-spark spec).
+    /// The Write button: always ask what to work on (start-from-spark spec,
+    /// design.md D4). The disk is read here, at the press, and handed to the
+    /// chooser — the screen keeps no idea of its own about what is in
+    /// progress.
+    ///
+    /// The one case with nothing to choose between is an app with no essays
+    /// open and no sparks captured, and it gets the sentence it has always
+    /// had rather than an empty list.
     fn write_pressed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        match self.data.essays.in_progress() {
-            Ok(Some(essay)) => self.open_editor(essay, window, cx),
-            Ok(None) => {
-                let sparks = self.data.sparks.load_all().map(|sparks| sparks.len());
-                match sparks {
-                    Ok(0) => self.tell(
+        let open = match self.data.essays.in_progress() {
+            Ok(open) => open,
+            Err(error) => {
+                log::error!("could not look for the essays in progress: {error}");
+                self.tell(format!("Cannot read the essays: {error}"), window, cx);
+                return;
+            }
+        };
+
+        if open.is_empty() {
+            match self.data.sparks.load_all().map(|sparks| sparks.len()) {
+                Ok(0) => {
+                    return self.tell(
                         "A spark comes first. Write a thought down, and we start from it.",
                         window,
                         cx,
-                    ),
-                    Ok(_) => self
-                        .today
-                        .update(cx, |today, cx| today.offer_sparks(window, cx)),
-                    Err(error) => self.tell(format!("Cannot read the sparks: {error}"), window, cx),
+                    )
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    return self.tell(format!("Cannot read the sparks: {error}"), window, cx)
                 }
             }
+        }
+
+        self.today
+            .update(cx, |today, cx| today.offer_choices(open, window, cx));
+    }
+
+    /// Carry on with one of the essays in progress, chosen by slug. Loaded
+    /// afresh: the chooser's copy was read when Write was pressed, and the
+    /// file on disk is the one to open.
+    fn continue_essay(&mut self, slug: &str, window: &mut Window, cx: &mut Context<Self>) {
+        match self.data.essays.load(slug) {
+            Ok(essay) => self.open_editor(essay, window, cx),
             Err(error) => {
-                log::error!("could not look for an essay in progress: {error}");
-                self.tell(format!("Cannot read the essays: {error}"), window, cx);
+                log::error!("could not open '{slug}': {error}");
+                self.tell(format!("Could not open that essay: {error}"), window, cx);
             }
         }
     }
@@ -271,10 +300,14 @@ impl RootView {
                 self.open_editor(essay, window, cx);
             }
             // Routing normally makes this impossible — neither screen offers a
-            // start while the slot is taken; the refusal is still shown rather
-            // than swallowed (start-from-spark spec).
-            Err(Error::EssayInProgress { slug, .. }) => self.tell(
-                format!("“{slug}” is in progress — finish it before starting another one."),
+            // start while three essays are open; the refusal is still shown
+            // rather than swallowed (start-from-spark spec).
+            Err(Error::TooManyInProgress { .. }) => self.tell(
+                format!(
+                    "{} essays are already open. Publish or shelve one, \
+                     and this spark can start the next.",
+                    limit_in_words()
+                ),
                 window,
                 cx,
             ),

@@ -71,9 +71,11 @@ pub enum Error {
     #[error("'{slug}' is not a usable essay name")]
     InvalidSlug { slug: String },
 
-    /// The WIP = 1 invariant, refused at the storage layer.
-    #[error("'{slug}' is still in progress ({status}); publish or shelve it before starting another")]
-    EssayInProgress { slug: String, status: EssayStatus },
+    /// The WIP invariant, refused at the storage layer. It names the limit
+    /// rather than one of the essays: any of them could be the one to finish,
+    /// so naming one would be misdirection (design.md, D6).
+    #[error("{limit} essays are already in progress; publish or shelve one before starting another")]
+    TooManyInProgress { limit: usize },
 
     #[error("an essay cannot move from {from} to {to}")]
     IllegalTransition { from: EssayStatus, to: EssayStatus },

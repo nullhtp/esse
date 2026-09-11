@@ -5,7 +5,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
-use crate::model::{Essay, EssayStatus};
+use crate::model::{Essay, EssayStatus, WIP_LIMIT};
 use crate::store::{frontmatter, read_to_string, write_atomic, DataDir};
 
 pub struct EssayStore {
@@ -21,17 +21,15 @@ impl EssayStore {
 
     /// Starts a new essay, in Draft.
     ///
-    /// This is the WIP = 1 invariant: while any essay is Draft or Editing,
-    /// creation is refused and nothing is written. There is deliberately no
-    /// other way to create an essay, so no caller — no UI — can get around it.
+    /// This is the WIP invariant: while [`WIP_LIMIT`] essays are Draft or
+    /// Editing, creation is refused and nothing is written. There is
+    /// deliberately no other way to create an essay, so no caller — no UI —
+    /// can get around it, and the limit is asked for in exactly this one
+    /// place (design.md, D2).
     pub fn create(&self, slug: &str, spark: Option<&str>) -> Result<Essay> {
         validate_slug(slug)?;
-        if let Some(open) = self.in_progress()? {
-            let status = open.status();
-            return Err(Error::EssayInProgress {
-                slug: open.slug,
-                status,
-            });
+        if self.in_progress()?.len() >= WIP_LIMIT {
+            return Err(Error::TooManyInProgress { limit: WIP_LIMIT });
         }
         if self.path(slug).exists() {
             return Err(Error::SlugTaken {
@@ -75,12 +73,18 @@ impl EssayStore {
         Ok(essays)
     }
 
-    /// The essay currently occupying the work-in-progress slot, if any.
-    pub fn in_progress(&self) -> Result<Option<Essay>> {
+    /// The essays in progress, most recently worked first.
+    ///
+    /// The order is `load_all`'s — `updated_at` descending — and autosave
+    /// touches `updated_at`, so the first essay is the one last typed into.
+    /// Never longer than [`WIP_LIMIT`], because [`Self::create`] is the only
+    /// way an essay comes into being.
+    pub fn in_progress(&self) -> Result<Vec<Essay>> {
         Ok(self
             .load_all()?
             .into_iter()
-            .find(|essay| essay.is_in_progress()))
+            .filter(|essay| essay.is_in_progress())
+            .collect())
     }
 
     /// Published essays, newest first — by `published_at`, the day the essay

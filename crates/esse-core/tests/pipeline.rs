@@ -1,6 +1,6 @@
 //! The whole conveyor, end to end, on a scratch `ESSE_DATA_DIR`: a spark
 //! becomes a draft, the draft is written and edited, the essay ends — published
-//! or shelved — and the slot is free for the next one.
+//! or shelved — and a lane is free for the next one.
 //!
 //! Everything the two editor modes do to an essay happens here through the same
 //! core the app calls; what is left over for a person to check is the pointing
@@ -14,7 +14,7 @@ use esse_core::{publish, shelve, start_essay_from_spark, DataDir, EssayStatus, E
 use tempfile::TempDir;
 
 #[test]
-fn the_pipeline_runs_from_a_spark_to_an_ending_and_frees_the_slot() {
+fn the_pipeline_runs_from_a_spark_to_an_ending_and_makes_room() {
     let temp = TempDir::new().unwrap();
     env::set_var("ESSE_DATA_DIR", temp.path().join("esse"));
     let dir = DataDir::open().unwrap();
@@ -37,7 +37,7 @@ fn the_pipeline_runs_from_a_spark_to_an_ending_and_frees_the_slot() {
     // Write → Edit.
     essay.transition_to(EssayStatus::Editing).unwrap();
     essays.save(&essay).unwrap();
-    assert_eq!(essays.in_progress().unwrap().unwrap().slug, essay.slug);
+    assert_eq!(essays.in_progress().unwrap()[0].slug, essay.slug);
 
     // The publish panel: the body goes out to the clipboard and to a file,
     // and neither carries the front matter or changes the essay.
@@ -63,17 +63,17 @@ fn the_pipeline_runs_from_a_spark_to_an_ending_and_frees_the_slot() {
     );
     assert!(file.contains("# Почему эссе"), "{file}");
 
-    // The slot freed itself: the next spark can start.
-    assert!(essays.in_progress().unwrap().is_none());
+    // The lane freed itself: the next spark can start.
+    assert!(essays.in_progress().unwrap().is_empty());
     let next = sparks.load_all().unwrap().pop().unwrap();
     let second = start_essay_from_spark(&sparks, &essays, &next.id).unwrap();
     assert_eq!(second.status(), EssayStatus::Draft);
     assert!(sparks.load_all().unwrap().is_empty());
 
-    // The other ending, and the slot frees the same way.
+    // The other ending, and the lane frees the same way.
     let shelved = shelve(&essays, second).unwrap();
     assert_eq!(shelved.status(), EssayStatus::Shelved);
-    assert!(essays.in_progress().unwrap().is_none());
+    assert!(essays.in_progress().unwrap().is_empty());
 
     // What the Shelf shows at the end of it all: one published essay with its
     // link, one in the drawer, nothing in progress, no sparks left.
@@ -87,3 +87,4 @@ fn the_pipeline_runs_from_a_spark_to_an_ending_and_frees_the_slot() {
     assert_eq!(shelved.len(), 1);
     assert_eq!(shelved[0].spark.as_deref(), Some("подождёт своей очереди"));
 }
+

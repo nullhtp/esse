@@ -1,10 +1,11 @@
 //! Ending an essay: published, or deliberately in the drawer.
 //!
 //! Both endings are the same two steps in the same order — move the essay
-//! through the lifecycle, then write it — and neither frees the
-//! work-in-progress slot as a step of its own. The slot is free afterwards
-//! because Published and Shelved simply do not count as in progress
-//! (essay-lifecycle spec); there is nothing else to undo.
+//! through the lifecycle, then write it — and neither makes room for the next
+//! essay as a step of its own. The room is there afterwards because Published
+//! and Shelved simply do not count as in progress (essay-lifecycle spec);
+//! there is nothing else to undo. The other essays in progress are not
+//! touched: what ends, ends alone.
 //!
 //! An essay that cannot make the move is refused before anything is written,
 //! so a failed ending leaves the file exactly as it was.
