@@ -9,9 +9,10 @@
 //! * [`Viewport::Scrolled`] keeps it in a [`Scroll`] the wheel moves, and only
 //!   chases the caret when the caret itself moved.
 //!
-//! The two rules that keep a scrolled view honest — pull the caret back in,
-//! and do not let the document float off either end — are the pure functions
-//! below, so they can be reasoned about without a window.
+//! The three rules that keep a scrolled view honest — keep a margin at each
+//! end, pull the caret back in, and do not let the document float off either
+//! end — are the pure functions below, so they can be reasoned about without a
+//! window.
 
 use gpui::{px, Pixels};
 
@@ -26,8 +27,8 @@ pub enum Viewport {
     Scrolled,
 }
 
-/// A scrolled view's position: the paragraph at the top edge of the window, and
-/// how much of it has already gone past that edge.
+/// A scrolled view's position: the paragraph at the top of the page, and how
+/// much of it has already gone past that edge.
 ///
 /// A position expressed in paragraphs rather than in pixels from the document's
 /// start is what lets scrolling stay as cheap as typing: reaching the anchor
@@ -45,6 +46,25 @@ impl Default for Scroll {
             offset: px(0.),
         }
     }
+}
+
+/// The band of the window the document is allowed to come to rest in: the
+/// window, less a page margin at the top and at the bottom.
+///
+/// Edit mode has the whole display and no title bar (fullscreen-rooms
+/// design.md, D1), so the window's top edge is the screen's own. Without a
+/// margin the first line of the essay rests hard against it — under the corner
+/// controls, and behind the notch strip on the machines that have one.
+///
+/// Only the resting positions are inset. Text still paints to the window's
+/// edges, so scrolling carries a paragraph off the screen rather than cutting
+/// it off part way down the page; what the margin buys is the two ends.
+///
+/// A window too short for two margins keeps a quarter of itself at each end
+/// rather than folding inside out.
+pub fn page(top: Pixels, bottom: Pixels, margin: Pixels) -> (Pixels, Pixels) {
+    let margin = margin.min((bottom - top) / 4.).max(px(0.));
+    (top + margin, bottom - margin)
 }
 
 /// The smallest shift that brings a row fully into view — positive moves the
@@ -105,6 +125,20 @@ mod tests {
     /// that quietly assumes the viewport starts at zero fails here.
     const TOP: Pixels = px(100.);
     const BOTTOM: Pixels = px(600.);
+
+    #[test]
+    fn the_page_keeps_a_margin_at_each_end() {
+        assert_eq!(page(px(0.), px(1000.), px(44.)), (px(44.), px(956.)));
+        assert_eq!(page(TOP, BOTTOM, px(44.)), (px(144.), px(556.)));
+    }
+
+    #[test]
+    fn a_window_too_short_for_two_margins_gives_what_it_has() {
+        // The full margin would leave the text a sliver; half the window is
+        // where it stops instead — and never less than nothing.
+        assert_eq!(page(px(0.), px(100.), px(44.)), (px(25.), px(75.)));
+        assert_eq!(page(px(0.), px(0.), px(44.)), (px(0.), px(0.)));
+    }
 
     fn into_view(top: f32, height: f32) -> Pixels {
         shift_into_view(px(top), px(top + height), TOP, BOTTOM)

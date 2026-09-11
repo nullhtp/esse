@@ -148,6 +148,13 @@ pub const EDITOR_SIZE: f32 = 20.;
 pub const EDITOR_LINE_SPACING: f32 = 1.62;
 pub const EDITOR_MEASURE: f32 = 680.;
 pub const EDITOR_PADDING: f32 = 48.;
+/// The page's margin above the first line and below the last, in the scrolled
+/// room. Edit mode fills the display borderlessly (fullscreen-rooms design.md,
+/// D1), so the window's top edge is the screen's: without this the first line
+/// of the essay rests against it, under the corner controls and behind the
+/// notch strip on the machines that have one. Deeper than both of those, so
+/// the text sits on the screen like a page rather than running off it.
+pub const EDITOR_MARGIN: f32 = 44.;
 
 /// Headings are larger, and stay larger while the cursor is on them —
 /// otherwise entering a heading would make the page jump. The steps are wide

@@ -21,7 +21,7 @@ use markdown_lite::{parse_line, render_plan, SpanKind, Style as MarkdownStyle};
 
 use super::buffer::Buffer;
 use super::display::DisplayLine;
-use super::viewport::{clamp_shift, shift_into_view, Scroll, Viewport};
+use super::viewport::{clamp_shift, page, shift_into_view, Scroll, Viewport};
 use super::wrap::VisualLine;
 use super::{line_font_size, EditorStyle, EditorView};
 use crate::fonts;
@@ -397,12 +397,20 @@ fn scrolled(
     shape: &impl Fn(usize, &Window) -> (VisualLine, WrappedLine, Pixels),
     window: &Window,
 ) -> (Vec<PaintedLine>, Scroll) {
+    // The document comes to rest inside the page, not inside the window: this
+    // room has the whole screen, and the screen's top edge is no place for the
+    // first line of an essay. Filling still runs to the window's edges below —
+    // the margin is where the text stops, not where it is cut off.
+    let (page_top, page_bottom) = page(bounds.top(), bounds.bottom(), px(theme::EDITOR_MARGIN));
+
     let (mut anchor, offset) = normalise(buffer, scroll, shape, window);
-    let mut top = bounds.top() - offset;
+    let mut top = page_top - offset;
     let mut lines = lay_out(buffer, anchor, top, bounds, shape, window);
 
     if follow_caret {
-        if let Some((line, caret_top)) = caret_anchor(buffer, &lines, bounds, shape, window) {
+        if let Some((line, caret_top)) =
+            caret_anchor(buffer, &lines, page_top, page_bottom, shape, window)
+        {
             anchor = line;
             top = caret_top;
             lines = lay_out(buffer, anchor, top, bounds, shape, window);
@@ -419,8 +427,8 @@ fn scrolled(
         first.top,
         last.index + 1 == buffer.line_count(),
         last.bottom(),
-        bounds.top(),
-        bounds.bottom(),
+        page_top,
+        page_bottom,
     );
     if shift != px(0.) {
         top += shift;
@@ -431,13 +439,13 @@ fn scrolled(
         lines,
         Scroll {
             line: anchor,
-            offset: bounds.top() - top,
+            offset: page_top - top,
         },
     )
 }
 
 /// Walk the anchor to the paragraph the offset actually lands in, so layout
-/// starts at the window's top edge and not somewhere off it. A wheel tick moves
+/// starts at the top of the page and not somewhere off it. A wheel tick moves
 /// the view by less than a paragraph, so this almost always walks nowhere.
 fn normalise(
     buffer: &Buffer,
@@ -469,12 +477,15 @@ fn normalise(
     (line, offset.max(px(0.)))
 }
 
-/// Where the anchor has to move for the caret to be on screen, or `None` if it
-/// already is.
+/// Where the anchor has to move for the caret to be on the page, or `None` if
+/// it already is. The caret comes to rest against the page's edges rather than
+/// the window's, so typing at either end never puts the line being written
+/// under the corner controls or against the edge of the screen.
 fn caret_anchor(
     buffer: &Buffer,
     lines: &[PaintedLine],
-    bounds: Bounds<Pixels>,
+    page_top: Pixels,
+    page_bottom: Pixels,
     shape: &impl Fn(usize, &Window) -> (VisualLine, WrappedLine, Pixels),
     window: &Window,
 ) -> Option<(usize, Pixels)> {
@@ -485,7 +496,7 @@ fn caret_anchor(
         // On screen already, or a row or so off it: shift the whole frame by
         // the least that brings the caret's row back.
         let top = line.row_top(offset);
-        let shift = shift_into_view(top, top + line.line_height, bounds.top(), bounds.bottom());
+        let shift = shift_into_view(top, top + line.line_height, page_top, page_bottom);
         return (shift != px(0.)).then(|| (lines[0].index, lines[0].top + shift));
     }
 
@@ -495,9 +506,9 @@ fn caret_anchor(
     let (visual, _, line_height) = shape(cursor_line, window);
     let (row, _) = visual.position_of(offset);
     let top = if cursor_line < lines[0].index {
-        bounds.top() - line_height * row as f32
+        page_top - line_height * row as f32
     } else {
-        bounds.bottom() - line_height * (row + 1) as f32
+        page_bottom - line_height * (row + 1) as f32
     };
     Some((cursor_line, top))
 }
