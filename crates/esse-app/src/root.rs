@@ -74,8 +74,7 @@ impl RootView {
         // exactly as it was (summon-from-anywhere spec, design.md D4).
         let this = cx.entity().downgrade();
         window.on_window_should_close(cx, move |_, cx| {
-            this.update(cx, |this, cx| this.put_away(cx)).ok();
-            cx.hide();
+            this.update(cx, |this, cx| this.go_away(cx)).ok();
             false
         });
 
@@ -110,6 +109,14 @@ impl RootView {
             }
             Screen::Today | Screen::Shelf(_) => {}
         }
+    }
+
+    /// Out of sight, by whichever of the three ways asked for it: the summon
+    /// key pressed while esse is in front, the window closed, or escape on
+    /// Today. One way out, so none of them can forget the disk.
+    pub fn go_away(&mut self, cx: &mut Context<Self>) {
+        self.put_away(cx);
+        cx.hide();
     }
 
     /// Back from being away: whatever the writer was typing into gets the keys
@@ -190,6 +197,7 @@ impl RootView {
             TodayEvent::Start(spark_id) => self.start_from_spark(spark_id, window, cx),
             TodayEvent::Continue(slug) => self.continue_essay(slug, window, cx),
             TodayEvent::Shelf => self.show_shelf(window, cx),
+            TodayEvent::PutAway => self.go_away(cx),
         }
     }
 

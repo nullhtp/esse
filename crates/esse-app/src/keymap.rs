@@ -79,6 +79,10 @@ pub static SHORTCUTS: &[Shortcut] = &[
     // the capture line (keyboard-shortcuts spec).
     shortcut!("cmd-enter", today::Write, Scope::In(TODAY), "Write"),
     shortcut!("cmd-l", today::Shelf, Scope::In(TODAY), "Shelf"),
+    // The one bare key Today can spare: escape means a step back everywhere,
+    // and from Today the step back is out of sight (summon-from-anywhere
+    // spec).
+    shortcut!("escape", today::PutAway, Scope::In(TODAY), "Put esse away"),
     // Today, choosing what to work on. The capture line does not hold focus
     // here, so the bare keys are free (design.md, D5).
     shortcut!("up", today::Previous, Scope::In(CHOOSING), "The one above"),
@@ -298,7 +302,7 @@ mod tests {
         }
 
         let today: Vec<_> = shortcuts(Place::Today).map(|s| s.keys).collect();
-        assert_eq!(today, ["cmd-enter", "cmd-l"]);
+        assert_eq!(today, ["cmd-enter", "cmd-l", "escape"]);
         assert!(
             !shortcuts(Place::Finishing).any(|s| s.keys == "cmd-e"),
             "the completion overlay does not list Edit mode's keys"
@@ -307,6 +311,19 @@ mod tests {
             shortcuts(Place::Write).any(|s| s.keys == "cmd-b"),
             "the editor's markup keys work in Write mode too"
         );
+    }
+
+    /// Escape is the way back, and it is the way back from everywhere: the
+    /// Shelf and the two rooms to Today, the chooser to the capture line, and
+    /// Today — which has nowhere further back to go — out of sight altogether.
+    #[test]
+    fn escape_leads_back_out_of_every_place() {
+        for place in PLACES {
+            assert!(
+                shortcuts(place).any(|shortcut| shortcut.keys == "escape"),
+                "{place:?} leaves escape doing nothing"
+            );
+        }
     }
 
     /// One keystroke means one thing in one context.

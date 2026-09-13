@@ -39,7 +39,14 @@ use crate::theme;
 // that plain typing keeps landing in the capture line (keyboard-shortcuts
 // spec) — and the four below them are not, because choosing a spark takes the
 // focus off the capture line for as long as it lasts (design.md, D5).
-actions!(today, [Write, Shelf, Previous, Next, Choose, Cancel]);
+//
+// `PutAway` is the exception that proves the rule: escape is the one bare key
+// the capture line never wants, and Today is the one screen with nowhere
+// further back to go.
+actions!(
+    today,
+    [Write, Shelf, Previous, Next, Choose, Cancel, PutAway]
+);
 
 /// What the screen asks the router for.
 pub enum TodayEvent {
@@ -51,6 +58,8 @@ pub enum TodayEvent {
     Continue(String),
     /// The Shelf was asked for.
     Shelf,
+    /// Escape, with nothing left to back out of: esse goes out of sight.
+    PutAway,
 }
 
 /// One entry in the work chooser. Built fresh from the two lists every time
@@ -320,6 +329,16 @@ impl TodayView {
     fn cancel(&mut self, _: &Cancel, window: &mut Window, cx: &mut Context<Self>) {
         self.stop_choosing(window, cx);
         cx.notify();
+    }
+
+    /// Escape on Today. Everywhere else the key means one step back — the
+    /// Shelf to Today, a room to Today, the chooser to the capture line — and
+    /// here, where there is no step left to take, it means out of sight. The
+    /// half-typed spark stays in the line: being put away is not leaving, and
+    /// the summon key brings the screen back exactly as it was
+    /// (summon-from-anywhere spec, design.md D3).
+    fn put_away(&mut self, _: &PutAway, _: &mut Window, cx: &mut Context<Self>) {
+        cx.emit(TodayEvent::PutAway);
     }
 
     fn write_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -669,6 +688,7 @@ impl Render for TodayView {
             .on_action(cx.listener(Self::next))
             .on_action(cx.listener(Self::choose))
             .on_action(cx.listener(Self::cancel))
+            .on_action(cx.listener(Self::put_away))
             .child(shelf)
             .child(
                 div()
