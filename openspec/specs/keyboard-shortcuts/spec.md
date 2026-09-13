@@ -13,14 +13,18 @@ drafting with editing. The bindings stay chrome rather than a feature — per
 the anti-features list there is no hint layered onto any screen and no
 customization, and the single place they are listed is the on-demand overlay
 the shortcut-help capability defines. On the resting Today screen every one of
-them carries a modifier, so plain typing always lands in the spark input.
+them carries a modifier — bar Escape, which types nothing — so plain typing
+always lands in the spark input.
 
 ## Requirements
 
 ### Requirement: Shortcuts yield to typing
 Every shortcut available on the resting Today screen MUST use a modifier
 key, so that plain typing — including Cyrillic and IME composition — always
-lands in the spark input and never triggers navigation. Transient states
+lands in the spark input and never triggers navigation. Escape is the one
+exception, and only because it is not typing: it produces no character to
+lose, and it is the single word the app has for going back, which would be
+missing from the one screen where going back means leaving. Transient states
 entered by an explicit action and left by a single key (choosing a spark,
 the help overlay) MAY bind unmodified keys while they are open, because the
 capture line does not hold focus there.
@@ -32,6 +36,10 @@ capture line does not hold focus there.
 #### Scenario: A transient state hands the keys back
 - **WHEN** the user leaves the spark-choosing state with Escape
 - **THEN** focus returns to the spark input and plain typing is capture again
+
+#### Scenario: Escape costs the spark line nothing
+- **WHEN** the user has typed half a spark on the resting Today screen and presses Escape
+- **THEN** esse is put away, and the half-typed line is still in the input when esse is summoned back
 
 ### Requirement: Shortcuts are chrome, not a feature
 Shortcuts SHALL have no persistent in-app surface: no shortcut hints layered

@@ -88,7 +88,10 @@ answers the heavier question — not what can be pressed here, but how to work
 here: the method for this place, step by step.
 
 **Today.** `cmd-enter` — Write, `cmd-l` — the Shelf. Both take a modifier, so
-ordinary typing always lands in the spark line.
+ordinary typing always lands in the spark line. `esc` puts esse away: it is
+the key that goes back a step everywhere, and from Today the step back is out
+of sight. Whatever is half-typed in the spark line is still there when you
+summon it again.
 
 **Choosing what to work on.** When Write asks, the spark line gives its keys to
 the chooser: `↑`/`↓` walk the whole list — the essays in progress and the

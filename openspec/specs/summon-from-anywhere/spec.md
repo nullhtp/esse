@@ -48,12 +48,19 @@ reached by its key and by its window, not from the Dock.
 ### Requirement: The app stays resident
 Closing the window SHALL put esse away rather than quit it: the essay is
 saved first, exactly as on every other way out, and the app keeps running
-and keeps answering the summon key. Quitting SHALL remain an explicit act —
-`cmd-q` — and SHALL save the essay the same way before it ends.
+and keeps answering the summon key. Escape on the resting Today screen SHALL
+do the same and for the same reason — Escape is the app's one word for going
+back, and Today is where there is nowhere further back to go. Quitting SHALL
+remain an explicit act — `cmd-q` — and SHALL save the essay the same way
+before it ends.
 
 #### Scenario: Closing the window keeps the app
 - **WHEN** the user closes the window while writing
 - **THEN** the essay on disk holds the text as last typed, the window is gone, and esse is still running
+
+#### Scenario: Escape on Today is a way out too
+- **WHEN** the user presses Escape on the Today screen with nothing being chosen
+- **THEN** esse is hidden and still running, and the summon key brings back the screen as it was
 
 #### Scenario: Quitting is still quitting
 - **WHEN** the user presses `cmd-q`
