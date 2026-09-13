@@ -2,6 +2,7 @@
 //! cached, every read scans the disk, so hand-edited or synced files need no
 //! import step (design.md, D2).
 
+mod cloud;
 mod data_dir;
 mod essays;
 mod frontmatter;

@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
 use crate::setup::Setup;
+use crate::store::cloud;
 
 /// The name of the folder, as a person reads it in Finder.
 const FOLDER: &str = "Esse";
@@ -68,7 +69,13 @@ impl DataDir {
     }
 
     /// Opens a specific directory, creating it if it does not exist.
+    ///
+    /// Every other constructor ends here, which makes this the one place esse
+    /// learns which folder is its own — and so the place to say, before a byte
+    /// is read, that the folder may be in the cloud and is worth waiting for
+    /// (cloud.rs).
     pub fn at(root: impl Into<PathBuf>) -> Result<Self> {
+        cloud::allow_downloads();
         let root = root.into();
         fs::create_dir_all(&root).map_err(Error::io(&root))?;
         Ok(DataDir { root })
